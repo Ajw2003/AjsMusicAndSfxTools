@@ -1,5 +1,6 @@
 <script lang="ts">
   import { onMount } from "svelte";
+  import ClipInspector from "./components/ClipInspector.svelte";
   import Keyboard from "./components/Keyboard.svelte";
   import SongFileBar from "./components/SongFileBar.svelte";
   import StartOverlay from "./components/StartOverlay.svelte";
@@ -55,6 +56,8 @@
   /** Where recorded notes go, and the span the transport loops while recording. */
   let recordTargetNow: RecordTarget | null = null;
   let recordRegion: LoopRegion | null = null;
+  /** The copied clip (a deep copy), pasted with a fresh id. */
+  let clipboard = $state<Clip | null>(null);
   let isPhone = $state(false);
 
   const recorder = new TakeRecorder();
@@ -65,6 +68,9 @@
     song.tracks.find((t) => t.id === selectedId) ?? song.tracks[0],
   );
   const preset = $derived(getPreset(selected.sound));
+  const inspected = $derived(
+    selectedClipId ? (findClip(song, selectedClipId) ?? null) : null,
+  );
   const isDrums = $derived(selected.sound === "noise");
 
   // Kick (below C4) must be reachable on drum tracks, so they start at C3.
@@ -238,6 +244,63 @@
     ) {
       aimRecording(recordTargetNow);
     }
+  }
+
+  function onClipChange(changes: Partial<Omit<Clip, "id" | "content">>): void {
+    if (!selectedClipId) return;
+    history.apply({ type: "updateClip", clipId: selectedClipId, changes });
+  }
+
+  function canSplitAt(clip: Clip, at: number): boolean {
+    return at > clip.startBeat && at < clip.startBeat + clip.lengthBeats;
+  }
+
+  function onSplit(): void {
+    const clip = selectedClip();
+    const at = engine.isPlaying ? engine.currentBeat() : beat;
+    if (!clip || !canSplitAt(clip, at)) return;
+    history.apply({ type: "splitClip", clipId: clip.id, atBeat: at });
+  }
+
+  function onDuplicate(): void {
+    const clip = selectedClip();
+    if (!clip) return;
+    const newClipId = crypto.randomUUID();
+    history.apply({ type: "duplicateClip", clipId: clip.id, newClipId });
+    selectedClipId = newClipId;
+  }
+
+  function onCopy(): void {
+    const clip = selectedClip();
+    // History songs are plain data, so a structured clone is a deep copy.
+    if (clip) clipboard = structuredClone(clip);
+  }
+
+  /** Paste on the selected track at the playhead (snapped to the beat). */
+  function onPaste(): void {
+    if (!clipboard) return;
+    const track = history.song.tracks.find((t) => t.id === selectedId);
+    if (!track || track.kind !== clipboard.content.kind) return;
+    const clip: Clip = {
+      ...structuredClone($state.snapshot(clipboard)),
+      id: crypto.randomUUID(),
+      startBeat: Math.max(0, Math.round(beat)),
+    };
+    history.apply({ type: "addClip", trackId: track.id, clip });
+    selectedClipId = clip.id;
+  }
+
+  function onDeleteClip(): void {
+    const clip = selectedClip();
+    if (!clip) return;
+    if (
+      recordTargetNow?.kind === "clip" &&
+      recordTargetNow.clipId === clip.id
+    ) {
+      endRecording();
+    }
+    history.apply({ type: "removeClip", clipId: clip.id });
+    selectedClipId = null;
   }
 
   // ---- Recording ----
@@ -445,13 +508,33 @@
   }
 
   function onWindowKeydown(e: KeyboardEvent): void {
-    if (!(e.ctrlKey || e.metaKey) || e.altKey || isTyping(e.target)) return;
+    if (e.altKey || isTyping(e.target)) return;
+    const isCtrl = e.ctrlKey || e.metaKey;
+    if (!isCtrl) {
+      if (e.key === "Delete" && selectedClipId) {
+        e.preventDefault();
+        onDeleteClip();
+      }
+      return;
+    }
+    // Clip shortcuts, by physical key so they work on any keyboard language.
+    const clipKeys: Record<string, () => void> = {
+      KeyE: onSplit,
+      KeyD: onDuplicate,
+      KeyC: onCopy,
+      KeyV: onPaste,
+    };
     if (e.code === "KeyZ" && !e.shiftKey) {
       e.preventDefault();
       onUndo();
     } else if ((e.code === "KeyZ" && e.shiftKey) || e.code === "KeyY") {
       e.preventDefault();
       onRedo();
+    } else if (!e.shiftKey && e.code in clipKeys) {
+      // Copy with nothing selected is left to the browser (copying text).
+      if (e.code === "KeyC" && !selectedClipId) return;
+      e.preventDefault();
+      clipKeys[e.code]();
     }
   }
 </script>
@@ -530,6 +613,22 @@
     {onRemove}
     {onAdd}
   />
+
+  {#if inspected}
+    <ClipInspector
+      clip={inspected.clip}
+      trackColour={getPreset(inspected.track.sound).colour}
+      beatsPerBar={song.beatsPerBar}
+      canSplit={canSplitAt(inspected.clip, beat)}
+      canPaste={clipboard !== null && clipboard.content.kind === selected.kind}
+      onChange={onClipChange}
+      {onSplit}
+      {onDuplicate}
+      {onCopy}
+      {onPaste}
+      onDelete={onDeleteClip}
+    />
+  {/if}
 
   <label class="volume">
     Master volume

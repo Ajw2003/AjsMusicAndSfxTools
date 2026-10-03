@@ -1,4 +1,4 @@
-// Browser check for arranger phase A steps A2/A3/A4/A6 (#72, #73, #74, #76).
+// Browser check for arranger phase A, steps A2–A6 (#72–#76).
 //
 // Not part of `npm test`: Playwright is not a project dependency yet. Run it
 // against a running dev server with a Playwright install on NODE_PATH:
@@ -437,6 +437,125 @@ async function dragClips(browser) {
   await context.close();
 }
 
+/** Press Tab until `matches` is true for the focused element (no mouse). */
+async function tabTo(page, description, matches) {
+  for (let i = 0; i < 80; i++) {
+    await page.keyboard.press("Tab");
+    if (await page.evaluate(matches)) return true;
+  }
+  check(`Tab reaches ${description}`, false);
+  return false;
+}
+
+/** The song as autosaved (written 0.8 s after the last change). */
+async function savedSong(page) {
+  await page.waitForTimeout(1000);
+  return page.evaluate(() =>
+    JSON.parse(localStorage.getItem("ajs-music.autosave.v2")),
+  );
+}
+
+async function keyboardOnlyClipEdits(browser) {
+  const { context, page } = await start(browser, {
+    width: 1280,
+    height: 800,
+  });
+  await openSong(
+    page,
+    songFile(120, [clip("A", 4, 4, 4, [note("n1", 60, 0)])], null, [
+      track("t2", "Bass", []),
+    ]),
+    "keys.ajsong.json",
+  );
+  await page.locator("body").focus();
+  const clips = page.locator("[data-clip-id]");
+  await tabTo(
+    page,
+    "the clip",
+    () => document.activeElement?.dataset.clipId === "A",
+  );
+  await page.keyboard.press("Enter");
+  check(
+    "Enter on a clip opens the inspector",
+    await page.getByRole("region", { name: "Clip A" }).isVisible(),
+  );
+
+  async function typeInto(label, value) {
+    const found = await tabTo(
+      page,
+      `the ${label} field`,
+      new Function(
+        `const l = document.activeElement?.closest("label"); return !!l && l.firstChild.textContent.trim() === ${JSON.stringify(label)};`,
+      ),
+    );
+    if (!found) return;
+    await page.keyboard.press("Control+A");
+    await page.keyboard.type(String(value));
+    await page.keyboard.press("Enter");
+  }
+
+  await typeInto("Name", "Hook");
+  await typeInto("Start bar", 3);
+  await typeInto("Beat", 2);
+  await typeInto("Length (beats)", 8);
+  await typeInto("Loop length (beats)", 2);
+  await typeInto("Transpose (semitones)", 12);
+  await typeInto("Volume (dB)", -6);
+  let saved = await savedSong(page);
+  const c = saved.tracks[0].clips[0];
+  check(
+    "typed fields change the clip",
+    c.name === "Hook" &&
+      c.startBeat === 9 &&
+      c.lengthBeats === 8 &&
+      c.loopBeats === 2 &&
+      c.transpose === 12 &&
+      c.gainDb === -6,
+    JSON.stringify({ ...c, content: undefined }),
+  );
+  await page.getByLabel("Colour").fill("#ff0000");
+  saved = await savedSong(page);
+  check("colour can be set", saved.tracks[0].clips[0].colour === "#ff0000");
+  await tabTo(page, "Use track colour", () =>
+    document.activeElement?.textContent?.includes("Use track colour"),
+  );
+  await page.keyboard.press("Enter");
+  saved = await savedSong(page);
+  check("colour can be reset", saved.tracks[0].clips[0].colour === null);
+
+  // Playhead to beat 10 (inside the clip, which spans 9..17), keys only.
+  await tabTo(
+    page,
+    "the ruler",
+    () => document.activeElement?.getAttribute("aria-label") === "Playhead",
+  );
+  await page.keyboard.press("Home");
+  for (let i = 0; i < 10; i++) await page.keyboard.press("ArrowRight");
+  await page.keyboard.press("Control+KeyE");
+  check("Ctrl+E splits at the playhead", (await clips.count()) === 2);
+  await page.keyboard.press("Control+KeyD");
+  check("Ctrl+D duplicates", (await clips.count()) === 3);
+  await page.keyboard.press("Control+KeyC");
+  // End = the song end, beat 17 (the right half of the split ends there).
+  await page.keyboard.press("End");
+  await page.keyboard.press("Control+KeyV");
+  check("Ctrl+V pastes", (await clips.count()) === 4);
+  saved = await savedSong(page);
+  const pasted = saved.tracks[0].clips.at(-1);
+  check(
+    "paste lands at the playhead with the copied content",
+    pasted.startBeat === 17 && pasted.content.notes.length === 1,
+    `start ${pasted.startBeat}`,
+  );
+  await page.keyboard.press("Delete");
+  check("Delete removes the selected clip", (await clips.count()) === 3);
+  for (let i = 0; i < 4; i++) {
+    await page.keyboard.press("Control+KeyZ");
+  }
+  check("each clip action is one undo step", (await clips.count()) === 1);
+  await context.close();
+}
+
 (async () => {
   const browser = await chromium.launch({
     args: ["--autoplay-policy=no-user-gesture-required"],
@@ -444,6 +563,7 @@ async function dragClips(browser) {
   try {
     await recordIntoClip(browser);
     await dragClips(browser);
+    await keyboardOnlyClipEdits(browser);
     await stretchedClipRepeats(browser);
     await loopRegion(browser);
     await wavCoversSong(browser);
