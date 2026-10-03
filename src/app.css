@@ -2,6 +2,14 @@
   --color-bg: #121212;
   --color-text: #f2f2f2;
   --color-muted: #a0a0a0;
+  --color-surface: #1e1e22;
+  --color-border: #3a3a42;
+  --color-accent: #4fc3f7;
+  --color-error: #ff8a80;
+  --color-white-key: #e8e8ec;
+  --color-white-key-text: #1a1a1a;
+  --color-black-key: #1b1b1f;
+  --color-black-key-text: #d0d0d6;
   color-scheme: dark light;
 }
 
@@ -10,6 +18,14 @@
     --color-bg: #fafafa;
     --color-text: #1a1a1a;
     --color-muted: #555555;
+    --color-surface: #ffffff;
+    --color-border: #b5b5bd;
+    --color-accent: #01579b;
+    --color-error: #b71c1c;
+    --color-white-key: #ffffff;
+    --color-white-key-text: #1a1a1a;
+    --color-black-key: #2a2a30;
+    --color-black-key-text: #f0f0f4;
   }
 }
 
@@ -18,4 +34,10 @@ body {
   font-family: system-ui, sans-serif;
   background: var(--color-bg);
   color: var(--color-text);
+}
+
+/* Visible focus for every control. */
+:focus-visible {
+  outline: 3px solid var(--color-accent);
+  outline-offset: 2px;
 }

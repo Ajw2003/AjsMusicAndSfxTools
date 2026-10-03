@@ -1,6 +1,8 @@
 # Song timeline
 
-**Built?** No. Planned design, 2026-10-03. Rewrite this against the code once it exists.
+**Built?** Loop mode built, 2026-10-03: model and undo in `src/lib/song/song.ts`, recording in
+`src/lib/song/recorder.ts:14`. Each loop pass is committed as one `addNotes` command, so one undo removes
+one pass. Notes crossing the loop end are clipped (`wrapNoteToLoop`). Piano roll and step sequencer not built.
 
 ## What it owns
 

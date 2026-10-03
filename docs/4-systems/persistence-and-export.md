@@ -1,6 +1,7 @@
 # Persistence and export
 
-**Built?** No. Planned design, 2026-10-03. Rewrite this against the code once it exists.
+**Built?** Partly, 2026-10-03: autosave and project files in `src/lib/song/storage.ts` (autosave in localStorage,
+not IndexedDB yet; no custom samples exist); WAV in `src/lib/audio/wav.ts` via `renderWav`. MP3/OGG and MIDI not built.
 
 ## What it owns
 
