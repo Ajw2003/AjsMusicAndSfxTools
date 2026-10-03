@@ -1,7 +1,6 @@
-# Today (tier 5): 2026-10-03, handoff (updated after #72/#73/#76)
+# Today (tier 5): 2026-10-03, handoff (phase A built)
 
-**Read this first, then
-[ProjectState](../3-state/ProjectState.md) and [the arranger plan](../plans/arranger-timeline.md).**
+**Read this first, then [ProjectState](../3-state/ProjectState.md) and [the arranger plan](../plans/arranger-timeline.md).**
 
 ## Where things are
 
@@ -17,25 +16,28 @@
   Timeline view, playback from the playhead, Loop toggle, New clip, record into clips, whole-song export.
   Checked: types/lint/format clean, 102 unit tests, build, browser check `e2e/timeline.cjs` 22/22 twice.
   Run it with a dev server up: `NODE_PATH=<global node_modules with playwright> node e2e/timeline.cjs`.
+- **#74/#75 done (not merged), 2026-10-03:** drag clips with snap; clip inspector, split, duplicate, copy/paste,
+  delete, keyboard shortcuts. **Phase A (#71–#76) is complete on the branch.** `e2e/timeline.cjs`: 49/49, 3 runs.
 
 ## Next session, in order
 
-1. #74 (drag move/stretch/trim with snap) and #75 (clip inspector, split, duplicate, copy/paste). Extend
-   `e2e/timeline.cjs` for each. Adding Playwright as a dev dependency needs the owner's yes.
-2. Open a PR for phase A, CI green, then merge **only if the owner says so**: they have not yet answered
-   whether the agent may merge each phase itself.
-3. Then phase B (#77 chord builder, #78 one-key chord pads), C (#79–#81 audio files), D (#82 microphone).
+1. Open a PR for phase A (needs the owner's go-ahead), get CI green, then merge **only if the owner says so**:
+   they have not yet answered whether the agent may merge each phase itself.
+2. Then phase B (#77 chord builder, #78 one-key chord pads), C (#79–#81 audio files), D (#82 microphone).
+3. Adding Playwright as a dev dependency (so `e2e/` runs in CI) needs the owner's yes.
 
 ## Open questions for the owner
 
 - May the agent merge each arranger phase itself once CI and its own browser checks pass?
+- May I open the phase A pull request? And add Playwright as a dev dependency so the browser checks run in CI?
 - Still open from earlier: themes beyond the four planned; default note names (C D E vs Do Re Mi).
 
 ## Not done / known gaps
 
 - Nobody has measured key-to-sound latency (#15); needs the owner's PC.
 - Sample-pack licences (#17) not researched; only chiptune sounds exist.
-- Known rough edge: Stop during count-in can still play the pre-scheduled clicks.
+- Known rough edge: Pause during count-in can still play the pre-scheduled clicks (not re-checked).
+- Touch dragging of clips on a real phone is untested (mouse drags only).
 
 ## Process notes for the next agent
 

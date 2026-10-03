@@ -19,7 +19,7 @@ projects and download a WAV. Checked by a headless-browser run (21/21 checks, de
 | M6: Save and export | 10% | Project files + WAV built; MP3/OGG, MIDI, options not | #51 |
 | M7: Piano roll and step sequencer | 10% | Read-only loop view only | #57 |
 | M8: Installable, offline and polished | 5% | Not started | #62 |
-| M9: Arranger | 15% | #71, #72, #73, #76 built on branch (not merged); #74, #75 and phases B–D not started | #70 |
+| M9: Arranger | 15% | Phase A (#71–#76) built on branch, not merged; phases B–D not started | #70 |
 
 ## M0: Foundation
 
@@ -60,8 +60,14 @@ Plan: `docs/plans/arranger-timeline.md`. Handoff detail: `docs/5-today/Today.md`
   stretched clip sounds 4 times 1.000 s apart, checks the loop region repeats bar 2 only, gets a 17.00 s WAV for a
   16 s song, and checks a 64-bar song at 390 px and 1280 px wide with no page-level sideways scroll. Screenshots
   were looked at in light and dark mode.
-- **Not checked:** heard by a person; real phone touch; that the old prototype flows still feel the same.
-- **Not started:** #74, #75, #77–#82.
+- **Built, on branch only (2026-10-03):** drag clips to move/stretch/trim with snap (#74), clip inspector with
+  split/duplicate/copy/paste/delete and shortcuts (#75). `e2e/timeline.cjs` now has 49 checks, including every
+  drag type snapping and undoing in one step, and a keyboard-only run through every clip edit. Passed 3 times in a
+  row after a fix for a one-frame playhead flicker at the loop wrap, which run 2 of an earlier batch caught.
+  110 unit tests.
+- **Not checked:** heard by a person; real phone touch (dragging a clip on a touchscreen in particular; only mouse
+  drags were tested); setting the colour with the keyboard alone (the colour picker is the browser's own).
+- **Not started:** #77–#82.
 
 ## The one thing that is not what it looks like
 

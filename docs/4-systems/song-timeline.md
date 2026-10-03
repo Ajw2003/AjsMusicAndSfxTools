@@ -13,8 +13,17 @@ pure helpers in `src/lib/song/timeline-view.ts`. Record picks its target with `r
 at that bar (made only once a note is played, so an empty take leaves nothing behind). While recording the
 transport loops the target's first pass (`regionFor`/`aimRecording`, `src/App.svelte:214`); notes are
 recorded relative to that span and moved into the clip's source loop by `toClipSource` (`timeline-view.ts:138`),
-which accounts for trim. One pass is still one undo step. Not built yet: dragging clips (#74), the clip inspector,
-split, duplicate, copy/paste (#75).
+which accounts for trim. One pass is still one undo step.
+
+**Editing clips, 2026-10-03 (#74, #75):** dragging is worked out by `dragClip` (`timeline-view.ts:237`): move, stretch
+(right edge; the loop is kept so content repeats) or trim (left edge; the trim offset shifts so the notes that
+stay keep their place). The edge being moved snaps to the absolute grid (Snap: Off/Beat/Bar), not by the drag
+distance. The timeline previews the drag and commits it once on release through `onClipEdit` (`src/App.svelte:217`),
+a `moveClip` + `updateClip` batch, so one drag is one undo step. The dragged clip stays mounted in its own lane
+during a cross-track drag (it holds the pointer capture), and a dashed ghost shows the target. Arrow keys on a
+focused clip do the same edits. `ClipInspector.svelte` has typed fields for every clip setting. Split, duplicate,
+copy, paste and delete use the existing commands. Copy/paste uses an in-app clipboard, not the system one, and
+pastes on the selected track at the playhead. Shortcuts are Ctrl+E/D/C/V and Delete, matched by physical key.
 
 ## What it owns
 
