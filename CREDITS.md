@@ -5,6 +5,6 @@ author, source link and licence. Code dependencies are listed in `package.json` 
 
 No third-party samples are included yet. Sources are chosen in issue #17.
 
-| Asset | Used for | Author | Source | Licence |
-|---|---|---|---|---|
-| (none yet) | | | | |
+| Asset      | Used for | Author | Source | Licence |
+| ---------- | -------- | ------ | ------ | ------- |
+| (none yet) |          |        |        |         |
