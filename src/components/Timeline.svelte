@@ -2,16 +2,25 @@
   import { CHIPTUNE_PRESETS, getPreset } from "../lib/audio/chiptune";
   import type { ChiptuneSoundId } from "../lib/audio/chiptune";
   import { positionLabel } from "../lib/song/loop-view";
-  import { songEndBeat, type Song, type Track } from "../lib/song/song";
+  import {
+    songEndBeat,
+    type Clip,
+    type Song,
+    type Track,
+  } from "../lib/song/song";
   import {
     DEFAULT_ZOOM,
     MAX_ZOOM,
     MIN_ZOOM,
+    SNAP_OPTIONS,
+    dragClip,
     pxToBeat,
     rulerTicks,
     stepZoom,
     timelineWidth,
     trackNoteCount,
+    type ClipPlacement,
+    type DragMode,
   } from "../lib/song/timeline-view";
   import ClipBlock from "./ClipBlock.svelte";
   import TrackHeader from "./TrackHeader.svelte";
@@ -30,6 +39,12 @@
     onSelectClip: (trackId: string, clipId: string | null) => void;
     onSeek: (beat: number) => void;
     onLoopRegion: (startBeat: number, endBeat: number) => void;
+    /** Place a clip (one undo step), possibly on another track. */
+    onClipEdit: (
+      clipId: string,
+      toTrackId: string,
+      placement: ClipPlacement,
+    ) => void;
     onUpdate: (
       id: string,
       changes: Partial<Pick<Track, "name" | "sound" | "volumeDb" | "isMuted">>,
@@ -50,6 +65,7 @@
     onSelectClip,
     onSeek,
     onLoopRegion,
+    onClipEdit,
     onUpdate,
     onClear,
     onRemove,
@@ -74,6 +90,118 @@
     song.tracks.find((t) => t.id === settingsTrackId) ?? null,
   );
   const region = $derived(song.loopRegion);
+
+  let snapGrid = $state(1);
+  /** The clip being dragged and where it would land, or null. */
+  let drag = $state<{
+    clipId: string;
+    fromTrackId: string;
+    toTrackId: string;
+    mode: DragMode;
+    deltaBeats: number;
+  } | null>(null);
+
+  function canHold(trackId: string, from: Track): boolean {
+    const to = song.tracks.find((t) => t.id === trackId);
+    return to !== undefined && to.kind === from.kind;
+  }
+
+  /** Where the dragged clip would land, or null when nothing is dragged. */
+  const dragPlaced = $derived.by((): Clip | null => {
+    if (!drag) return null;
+    const d = drag;
+    const from = song.tracks.find((t) => t.id === d.fromTrackId);
+    const clip = from?.clips.find((c) => c.id === d.clipId);
+    if (!clip) return null;
+    return { ...clip, ...dragClip(clip, d.mode, d.deltaBeats, snapGrid) };
+  });
+
+  /**
+   * The clips drawn in a lane. The dragged clip stays in its own lane (it
+   * holds the pointer, so it must not unmount); it follows the pointer
+   * there, or stays put and dims while a ghost shows it on another track.
+   */
+  function laneClips(track: Track): Clip[] {
+    const placed = dragPlaced;
+    if (!drag || !placed || drag.fromTrackId !== track.id) return track.clips;
+    if (drag.toTrackId !== track.id) return track.clips;
+    return track.clips.map((c) => (c.id === placed.id ? placed : c));
+  }
+
+  function startOrUpdateDrag(
+    track: Track,
+    clip: Clip,
+    mode: DragMode,
+    deltaBeats: number,
+    overTrackId: string | null,
+  ): void {
+    // Only a move can change track, and only to a track of the same kind.
+    const keep = drag?.toTrackId ?? track.id;
+    const toTrackId =
+      mode === "move" && overTrackId && canHold(overTrackId, track)
+        ? overTrackId
+        : keep;
+    drag = {
+      clipId: clip.id,
+      fromTrackId: track.id,
+      toTrackId,
+      mode,
+      deltaBeats,
+    };
+  }
+
+  function endDrag(clip: Clip, commit: boolean): void {
+    const d = drag;
+    drag = null;
+    if (!commit || !d) return;
+    const placement = dragClip(clip, d.mode, d.deltaBeats, snapGrid);
+    const isSame =
+      d.toTrackId === d.fromTrackId &&
+      placement.startBeat === clip.startBeat &&
+      placement.lengthBeats === clip.lengthBeats &&
+      placement.offsetBeats === clip.offsetBeats;
+    if (!isSame) onClipEdit(clip.id, d.toTrackId, placement);
+  }
+
+  /**
+   * Keyboard equivalents of dragging a focused clip: arrows move it by one
+   * snap step (a beat when snap is off), Shift+arrows move its right edge,
+   * Alt+arrows its left edge, Up/Down move it to the next track.
+   */
+  function onClipKeydown(track: Track, clip: Clip, e: KeyboardEvent): void {
+    if (e.ctrlKey || e.metaKey) return;
+    const step = snapGrid || 1;
+    if (e.key === "ArrowLeft" || e.key === "ArrowRight") {
+      e.preventDefault();
+      const mode: DragMode = e.shiftKey
+        ? "stretch"
+        : e.altKey
+          ? "trim"
+          : "move";
+      const delta = e.key === "ArrowRight" ? step : -step;
+      onClipEdit(clip.id, track.id, dragClip(clip, mode, delta, snapGrid));
+    } else if (e.key === "ArrowUp" || e.key === "ArrowDown") {
+      e.preventDefault();
+      const i = song.tracks.findIndex((t) => t.id === track.id);
+      const dir = e.key === "ArrowDown" ? 1 : -1;
+      for (let j = i + dir; j >= 0 && j < song.tracks.length; j += dir) {
+        const to = song.tracks[j];
+        if (to.kind !== track.kind) continue;
+        onClipEdit(clip.id, to.id, {
+          startBeat: clip.startBeat,
+          lengthBeats: clip.lengthBeats,
+          offsetBeats: clip.offsetBeats,
+        });
+        // Keep focus on the clip as it changes lane.
+        queueMicrotask(() =>
+          scroller
+            .querySelector<HTMLElement>(`[data-clip-id="${clip.id}"]`)
+            ?.focus(),
+        );
+        return;
+      }
+    }
+  }
 
   /** Width of the sticky track-header column, read from CSS. */
   function headerWidth(): number {
@@ -165,6 +293,20 @@
         onclick={() => zoom(1)}>Zoom in</button
       >
     </span>
+    <label>
+      Snap
+      <select
+        value={snapGrid}
+        onchange={(e) => {
+          snapGrid = Number(e.currentTarget.value);
+          e.currentTarget.blur();
+        }}
+      >
+        {#each SNAP_OPTIONS as o (o.value)}
+          <option value={o.value}>{o.label}</option>
+        {/each}
+      </select>
+    </label>
     <span class="loop-bars" class:off={!loopOn}>
       <label>
         Loop from bar
@@ -261,6 +403,10 @@
             class="lane"
             class:selected={track.id === selectedTrackId}
             class:muted={track.isMuted}
+            class:drop={drag !== null &&
+              drag.toTrackId === track.id &&
+              drag.fromTrackId !== track.id}
+            data-track-id={track.id}
             role="listbox"
             tabindex="-1"
             aria-label="Clips on {track.name}"
@@ -269,7 +415,9 @@
               onSeek(beatFromEvent(e, e.currentTarget));
             }}
           >
-            {#each track.clips as clip (clip.id)}
+            {#each laneClips(track) as clip (clip.id)}
+              {@const original =
+                track.clips.find((c) => c.id === clip.id) ?? clip}
               <ClipBlock
                 {clip}
                 trackName={track.name}
@@ -277,9 +425,22 @@
                 beatsPerBar={bpb}
                 {pxPerBeat}
                 selected={clip.id === selectedClipId}
+                dragging={drag?.clipId === clip.id}
+                away={drag?.clipId === clip.id && drag.toTrackId !== track.id}
                 onSelect={(id) => onSelectClip(track.id, id)}
+                onDrag={(mode, delta, over) =>
+                  startOrUpdateDrag(track, original, mode, delta, over)}
+                onDragEnd={(commit) => endDrag(original, commit)}
+                onKeydown={(e) => onClipKeydown(track, original, e)}
               />
             {/each}
+            {#if drag && dragPlaced && drag.toTrackId === track.id && drag.fromTrackId !== track.id}
+              <span
+                class="ghost"
+                style:left="{dragPlaced.startBeat * pxPerBeat}px"
+                style:width="{dragPlaced.lengthBeats * pxPerBeat}px"
+              ></span>
+            {/if}
             <span class="playhead" style:left="{playhead * pxPerBeat}px"></span>
           </div>
         {/each}
@@ -544,6 +705,18 @@
   }
   .lane.selected {
     background-color: color-mix(in srgb, var(--color-accent) 7%, transparent);
+  }
+  .ghost {
+    position: absolute;
+    top: 0.25rem;
+    bottom: 0.25rem;
+    box-sizing: border-box;
+    border: 2px dashed var(--color-accent);
+    border-radius: 0.4rem;
+    pointer-events: none;
+  }
+  .lane.drop {
+    box-shadow: inset 0 0 0 2px var(--color-accent);
   }
   .lane.muted {
     opacity: 0.55;

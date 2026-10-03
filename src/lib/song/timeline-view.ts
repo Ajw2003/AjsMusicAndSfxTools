@@ -1,5 +1,6 @@
 import {
   expandClipNotes,
+  quantizeBeat,
   wrapNoteToLoop,
   type Clip,
   type Note,
@@ -206,4 +207,66 @@ export function trackNoteCount(track: Track): number {
     if (c.content.kind === "notes") n += c.content.notes.length;
   }
   return n;
+}
+
+/** Which part of a clip a drag moves: all of it, its right edge, or its left edge. */
+export type DragMode = "move" | "stretch" | "trim";
+
+/** The shortest a drag can make a clip, so it never vanishes under the pointer. */
+export const MIN_DRAG_BEATS = 0.25;
+
+/** Snap choices for dragging, in beats per grid line; 0 is off. */
+export const SNAP_OPTIONS = [
+  { value: 0, label: "Off" },
+  { value: 1, label: "Beat" },
+  { value: 4, label: "Bar" },
+] as const;
+
+export type ClipPlacement = Pick<
+  Clip,
+  "startBeat" | "lengthBeats" | "offsetBeats"
+>;
+
+/**
+ * Where a clip ends up after dragging by `deltaBeats`. The edge being moved
+ * snaps to the absolute grid (not by the drag distance), so a clip that is
+ * off the grid lands on it. Stretching keeps the source loop, so content
+ * repeats; trimming the left edge shifts the trim offset so the notes that
+ * stay keep their place on the timeline.
+ */
+export function dragClip(
+  clip: Clip,
+  mode: DragMode,
+  deltaBeats: number,
+  grid: number,
+): ClipPlacement {
+  const { startBeat, lengthBeats, offsetBeats, loopBeats } = clip;
+  const end = startBeat + lengthBeats;
+  // Never shorter than one grid step (or the minimum when snap is off).
+  const minLength = Math.max(MIN_DRAG_BEATS, grid);
+  if (mode === "move") {
+    return {
+      startBeat: Math.max(0, quantizeBeat(startBeat + deltaBeats, grid)),
+      lengthBeats,
+      offsetBeats,
+    };
+  }
+  if (mode === "stretch") {
+    const newEnd = quantizeBeat(end + deltaBeats, grid);
+    return {
+      startBeat,
+      lengthBeats: Math.max(minLength, newEnd - startBeat),
+      offsetBeats,
+    };
+  }
+  const newStart = Math.min(
+    end - minLength,
+    Math.max(0, quantizeBeat(startBeat + deltaBeats, grid)),
+  );
+  const shift = newStart - startBeat;
+  return {
+    startBeat: newStart,
+    lengthBeats: end - newStart,
+    offsetBeats: (((offsetBeats + shift) % loopBeats) + loopBeats) % loopBeats,
+  };
 }

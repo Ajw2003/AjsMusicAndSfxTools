@@ -1,4 +1,4 @@
-// Browser check for arranger phase A steps A2/A3/A6 (#72, #73, #76).
+// Browser check for arranger phase A steps A2/A3/A4/A6 (#72, #73, #74, #76).
 //
 // Not part of `npm test`: Playwright is not a project dependency yet. Run it
 // against a running dev server with a Playwright install on NODE_PATH:
@@ -53,22 +53,24 @@ function clip(id, startBeat, lengthBeats, loopBeats, notes) {
   };
 }
 
-function songFile(bpm, clips, loopRegion = null) {
+function track(id, name, clips) {
+  return {
+    id,
+    name,
+    kind: "notes",
+    sound: "square",
+    volumeDb: 0,
+    isMuted: false,
+    clips,
+  };
+}
+
+function songFile(bpm, clips, loopRegion = null, extraTracks = []) {
   return JSON.stringify({
     version: 2,
     bpm,
     beatsPerBar: 4,
-    tracks: [
-      {
-        id: "t1",
-        name: "Lead",
-        kind: "notes",
-        sound: "square",
-        volumeDb: 0,
-        isMuted: false,
-        clips,
-      },
-    ],
+    tracks: [track("t1", "Lead", clips), ...extraTracks],
     loopRegion,
     chordPads: [],
   });
@@ -313,12 +315,135 @@ async function phone64Bars(browser) {
   }
 }
 
+// Where a clip sits, read from its drawn geometry (24 px per beat).
+async function geometry(page, id) {
+  return page.locator(`[data-clip-id="${id}"]`).evaluate((el) => ({
+    start: parseFloat(el.style.left) / 24,
+    length: (parseFloat(el.style.width) + 2) / 24,
+    lane: el.closest("[data-track-id]").dataset.trackId,
+  }));
+}
+
+async function dragBy(page, id, part, dxBeats, dyPx = 0) {
+  const box = await page.locator(`[data-clip-id="${id}"]`).boundingBox();
+  const x =
+    part === "trim"
+      ? box.x + 3
+      : part === "stretch"
+        ? box.x + box.width - 3
+        : box.x + box.width / 2;
+  const y = box.y + box.height / 2;
+  await page.mouse.move(x, y);
+  await page.mouse.down();
+  // Several steps, like a real hand, so the drag threshold is crossed.
+  await page.mouse.move(x + (dxBeats * 24) / 2, y + dyPx / 2, { steps: 5 });
+  await page.mouse.move(x + dxBeats * 24, y + dyPx, { steps: 5 });
+  await page.mouse.up();
+}
+
+async function dragClips(browser) {
+  const { context, page } = await start(browser, {
+    width: 1280,
+    height: 800,
+  });
+  await openSong(
+    page,
+    songFile(120, [clip("A", 4, 4, 4, [note("n1", 60, 0)])], null, [
+      track("t2", "Bass", []),
+    ]),
+    "drag.ajsong.json",
+  );
+  const undo = () => page.getByRole("button", { name: "Undo" }).click();
+  const at = (g) => `start ${g.start}, length ${g.length}, ${g.lane}`;
+  const before = await geometry(page, "A");
+
+  await dragBy(page, "A", "move", 2.6);
+  let g = await geometry(page, "A");
+  check("drag moves and snaps to the beat", g.start === 7, at(g));
+  await undo();
+  g = await geometry(page, "A");
+  check("one undo reverts a move", g.start === before.start, at(g));
+
+  await dragBy(page, "A", "stretch", 4.3);
+  g = await geometry(page, "A");
+  check("right edge stretches to the beat", g.length === 8, at(g));
+  const preview = await page
+    .locator('[data-clip-id="A"] .note')
+    .evaluateAll((els) => els.length);
+  check("a stretched clip shows its content repeated", preview === 2);
+  await undo();
+  g = await geometry(page, "A");
+  check("one undo reverts a stretch", g.length === 4, at(g));
+
+  await dragBy(page, "A", "trim", 1.2);
+  g = await geometry(page, "A");
+  check("left edge trims to the beat", g.start === 5 && g.length === 3, at(g));
+  await undo();
+
+  await page.getByLabel("Snap").selectOption({ label: "Bar" });
+  await dragBy(page, "A", "move", 2.6);
+  g = await geometry(page, "A");
+  check("bar snap lands on a bar", g.start === 8, at(g));
+  await undo();
+  await page.getByLabel("Snap").selectOption({ label: "Off" });
+  await dragBy(page, "A", "move", 1.5);
+  g = await geometry(page, "A");
+  check("snap off moves freely", Math.abs(g.start - 5.5) < 0.05, at(g));
+  await undo();
+  await page.getByLabel("Snap").selectOption({ label: "Beat" });
+
+  const laneHeight = await page
+    .locator('[data-track-id="t2"]')
+    .evaluate((el) => el.getBoundingClientRect().height);
+  await dragBy(page, "A", "move", 0, laneHeight);
+  g = await geometry(page, "A");
+  check("drag moves a clip to another track", g.lane === "t2", at(g));
+  await undo();
+  g = await geometry(page, "A");
+  check("one undo returns it to its track", g.lane === "t1", at(g));
+
+  await page.locator('[data-clip-id="A"]').click();
+  check(
+    "a click without moving still selects",
+    (await page.locator('[data-clip-id="A"]').getAttribute("aria-selected")) ===
+      "true",
+  );
+
+  // Keyboard equivalents.
+  await page.locator('[data-clip-id="A"]').focus();
+  await page.keyboard.press("ArrowRight");
+  g = await geometry(page, "A");
+  check("Right arrow moves one snap step", g.start === 5, at(g));
+  await page.keyboard.press("Shift+ArrowRight");
+  g = await geometry(page, "A");
+  check("Shift+Right lengthens", g.length === 5, at(g));
+  await page.keyboard.press("Alt+ArrowRight");
+  g = await geometry(page, "A");
+  check("Alt+Right trims the start", g.start === 6 && g.length === 4, at(g));
+  await page.keyboard.press("ArrowDown");
+  g = await geometry(page, "A");
+  check("Down moves to the next track", g.lane === "t2", at(g));
+  const focused = await page.evaluate(
+    () => document.activeElement?.dataset.clipId,
+  );
+  check("focus stays on the moved clip", focused === "A");
+  for (let i = 0; i < 4; i++) await undo();
+  g = await geometry(page, "A");
+  check(
+    "four undos revert four key edits",
+    g.start === 4 && g.length === 4 && g.lane === "t1",
+    at(g),
+  );
+  await context.close();
+}
+
 (async () => {
   const browser = await chromium.launch({
     args: ["--autoplay-policy=no-user-gesture-required"],
   });
   try {
     await recordIntoClip(browser);
+    await dragClips(browser);
     await stretchedClipRepeats(browser);
     await loopRegion(browser);
     await wavCoversSong(browser);

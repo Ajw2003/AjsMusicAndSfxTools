@@ -8,6 +8,7 @@ import {
   clipAtBeat,
   clipLabel,
   clipPreview,
+  dragClip,
   pxToBeat,
   recordTarget,
   repeatBoundaries,
@@ -141,5 +142,48 @@ describe("clip drawing", () => {
     c.content = { kind: "notes", notes: [n("a", 60, 0)] };
     t.clips = [c, createNoteClip(4, 4)];
     expect(trackNoteCount(t)).toBe(1);
+  });
+});
+
+describe("dragging clips", () => {
+  const clip = () => {
+    const c = createNoteClip(4, 4);
+    c.lengthBeats = 8;
+    return c;
+  };
+  it("moves by the drag and snaps the start to the grid", () => {
+    expect(dragClip(clip(), "move", 2.6, 1).startBeat).toBe(7);
+    expect(dragClip(clip(), "move", 1.6, 4).startBeat).toBe(4);
+    expect(dragClip(clip(), "move", 2.4, 4).startBeat).toBe(8);
+    expect(dragClip(clip(), "move", 1.3, 0).startBeat).toBe(5.3);
+  });
+  it("snaps an off-grid clip onto the grid", () => {
+    const c = clip();
+    c.startBeat = 4.5;
+    expect(dragClip(c, "move", 0.2, 1).startBeat).toBe(5);
+  });
+  it("never moves before the timeline start", () => {
+    expect(dragClip(clip(), "move", -10, 1).startBeat).toBe(0);
+  });
+  it("stretches the right edge, keeping start and trim", () => {
+    const out = dragClip(clip(), "stretch", 7.7, 4);
+    expect(out).toEqual({ startBeat: 4, lengthBeats: 16, offsetBeats: 0 });
+  });
+  it("never stretches shorter than one grid step", () => {
+    expect(dragClip(clip(), "stretch", -20, 4).lengthBeats).toBe(4);
+    expect(dragClip(clip(), "stretch", -20, 0).lengthBeats).toBe(0.25);
+  });
+  it("trims the left edge and keeps notes in place via the offset", () => {
+    const out = dragClip(clip(), "trim", 1, 1);
+    expect(out).toEqual({ startBeat: 5, lengthBeats: 7, offsetBeats: 1 });
+  });
+  it("wraps the trim offset when the left edge goes out past the loop", () => {
+    const out = dragClip(clip(), "trim", -1, 1);
+    expect(out).toEqual({ startBeat: 3, lengthBeats: 9, offsetBeats: 3 });
+  });
+  it("never trims past the right edge", () => {
+    const out = dragClip(clip(), "trim", 20, 1);
+    expect(out.startBeat).toBe(11);
+    expect(out.lengthBeats).toBe(1);
   });
 });

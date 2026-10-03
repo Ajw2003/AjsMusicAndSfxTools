@@ -19,12 +19,14 @@
     type LoopRegion,
     type Note,
     type Song,
+    type SongCommand,
     type Track,
   } from "./lib/song/song";
   import {
     recordTarget,
     snapDownToBar,
     toClipSource,
+    type ClipPlacement,
     type RecordTarget,
   } from "./lib/song/timeline-view";
   import { loadAutosave, saveAutosave } from "./lib/song/storage";
@@ -203,6 +205,39 @@
     );
     history.apply({ type: "addClip", trackId: track.id, clip });
     selectedClipId = clip.id;
+  }
+
+  /** Apply a drag or keyboard placement as ONE undo step. */
+  function onClipEdit(
+    clipId: string,
+    toTrackId: string,
+    placement: ClipPlacement,
+  ): void {
+    const found = findClip(history.song, clipId);
+    if (!found) return;
+    const commands: SongCommand[] = [];
+    if (found.track.id !== toTrackId) {
+      commands.push({
+        type: "moveClip",
+        clipId,
+        toTrackId,
+        startBeat: placement.startBeat,
+      });
+    }
+    commands.push({ type: "updateClip", clipId, changes: placement });
+    history.apply(
+      commands.length === 1 ? commands[0] : { type: "batch", commands },
+    );
+    if (found.track.id !== toTrackId) selectTrack(toTrackId);
+    selectedClipId = clipId;
+    // A clip being recorded into keeps recording over its new place.
+    if (
+      isRecording &&
+      recordTargetNow?.kind === "clip" &&
+      recordTargetNow.clipId === clipId
+    ) {
+      aimRecording(recordTargetNow);
+    }
   }
 
   // ---- Recording ----
@@ -479,6 +514,7 @@
     {onSelectClip}
     {onSeek}
     {onLoopRegion}
+    {onClipEdit}
     {onUpdate}
     onClear={(id) => {
       const track = song.tracks.find((t) => t.id === id);
