@@ -31,10 +31,10 @@ accessibility rule as well as convenience.
 
 | Phase | What you can do after it | Issues |
 |---|---|---|
-| A. Timeline with note clips | Arrange recorded loops as clips on a growing timeline, move/stretch/trim/split/duplicate, zoom and scroll, play from the playhead, optional loop region, export the whole song | A1–A5 |
-| B. Chord builder + chord pads | Pick a key, build a progression from suggested chords, turn it into a clip; save chords as one-key pads you play live and record | B1–B2 |
-| C. Audio clips | Import WAV/MP3/OGG onto audio tracks, see waveforms, arrange like note clips, hear them in playback and export, saved in project files | C1–C3 |
-| D. Microphone | Record your voice/instrument into an audio clip with a count-in | D1 |
+| A. Timeline with note clips | Arrange recorded loops as clips on a growing timeline, move/stretch/trim/split/duplicate, zoom and scroll, play from the playhead, optional loop region, export the whole song | #71–#76 |
+| B. Chord builder + chord pads | Pick a key, build a progression from suggested chords, turn it into a clip; save chords as one-key pads you play live and record | #77, #78 |
+| C. Audio clips | Import WAV/MP3/OGG onto audio tracks, see waveforms, arrange like note clips, hear them in playback and export, saved in project files | #79–#81 |
+| D. Microphone | Record your voice/instrument into an audio clip with a count-in | #82 |
 
 ## Data change
 
