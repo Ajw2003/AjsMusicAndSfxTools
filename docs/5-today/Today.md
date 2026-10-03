@@ -17,7 +17,7 @@
   Checked: types/lint/format clean, 102 unit tests, build, browser check `e2e/timeline.cjs` 22/22 twice.
   Run it with a dev server up: `NODE_PATH=<global node_modules with playwright> node e2e/timeline.cjs`.
 - **#74/#75 done (not merged), 2026-10-03:** drag clips with snap; clip inspector, split, duplicate, copy/paste,
-  delete, keyboard shortcuts. **Phase A (#71–#76) is complete on the branch.** `e2e/timeline.cjs`: 49/49, 3 runs.
+  delete, keyboard shortcuts. **Phase A (#71–#76) is complete on the branch.** `e2e/timeline.cjs`: 53/53 (incl. emulated touch).
 
 ## Next session, in order
 
@@ -37,7 +37,7 @@
 - Nobody has measured key-to-sound latency (#15); needs the owner's PC.
 - Sample-pack licences (#17) not researched; only chiptune sounds exist.
 - Known rough edge: Pause during count-in can still play the pre-scheduled clicks (not re-checked).
-- Touch dragging of clips on a real phone is untested (mouse drags only).
+- Touch dragging is checked with emulated touch only; no physical phone has tried it.
 
 ## Process notes for the next agent
 

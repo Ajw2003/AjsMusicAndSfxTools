@@ -65,8 +65,12 @@ Plan: `docs/plans/arranger-timeline.md`. Handoff detail: `docs/5-today/Today.md`
   drag type snapping and undoing in one step, and a keyboard-only run through every clip edit. Passed 3 times in a
   row after a fix for a one-frame playhead flicker at the loop wrap, which run 2 of an earlier batch caught.
   110 unit tests.
-- **Not checked:** heard by a person; real phone touch (dragging a clip on a touchscreen in particular; only mouse
-  drags were tested); setting the colour with the keyboard alone (the colour picker is the browser's own).
+- **Touch (emulated, 2026-10-03):** real touch events on a 390 px phone page move, stretch and re-track a clip, and
+  a swipe on an empty lane still scrolls the timeline. 53/53 browser checks, run twice.
+- **Not checked:** heard by a person (the test browser has no speakers); a physical phone (only emulated touch,
+  as there is no device here); picking a colour with the keyboard alone (the browser's own colour picker
+  can't be driven from the test). Clips cover the lane they sit in, so on a phone a long song is scrolled by
+  swiping the ruler or empty lane space, not by swiping a clip.
 - **Not started:** #77–#82.
 
 ## The one thing that is not what it looks like

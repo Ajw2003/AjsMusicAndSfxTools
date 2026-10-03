@@ -556,6 +556,74 @@ async function keyboardOnlyClipEdits(browser) {
   await context.close();
 }
 
+// Real touch events (through the DevTools protocol) on a phone-sized page.
+async function touchDrags(browser) {
+  const context = await browser.newContext({
+    viewport: { width: 390, height: 844 },
+    hasTouch: true,
+    isMobile: true,
+  });
+  const page = await context.newPage();
+  page.on("pageerror", (e) => check("no page errors", false, e.message));
+  await page.goto(URL);
+  await page.getByRole("button", { name: /press any key to start/i }).tap();
+  await openSong(
+    page,
+    songFile(120, [clip("A", 4, 4, 4, [])], null, [track("t2", "Bass", [])]),
+    "touch.ajsong.json",
+  );
+  const cdp = await context.newCDPSession(page);
+  async function swipe(x, y, dx, dy) {
+    const at = (px, py) => [{ x: px, y: py, id: 1 }];
+    const send = (type, touchPoints) =>
+      cdp.send("Input.dispatchTouchEvent", { type, touchPoints });
+    await send("touchStart", at(x, y));
+    for (let i = 1; i <= 10; i++) {
+      await send("touchMove", at(x + (dx * i) / 10, y + (dy * i) / 10));
+    }
+    await send("touchEnd", []);
+    await page.waitForTimeout(200);
+  }
+  // Both lanes above the sticky keyboard dock, which covers the bottom.
+  await page
+    .locator(".scroller")
+    .evaluate((el) => window.scrollBy(0, el.getBoundingClientRect().top - 120));
+  const at = (g) => `start ${g.start}, length ${g.length}, ${g.lane}`;
+  const clipBox = () => page.locator('[data-clip-id="A"]').boundingBox();
+
+  let box = await clipBox();
+  await swipe(box.x + box.width / 2, box.y + box.height / 2, 48, 0);
+  let g = await geometry(page, "A");
+  check("phone: touch drag moves a clip", g.start === 6, at(g));
+  box = await clipBox();
+  await swipe(box.x + box.width - 3, box.y + box.height / 2, 48, 0);
+  g = await geometry(page, "A");
+  check("phone: touch drag on the right edge stretches", g.length === 6, at(g));
+  const laneHeight = await page
+    .locator('[data-track-id="t2"]')
+    .evaluate((el) => el.getBoundingClientRect().height);
+  box = await clipBox();
+  await swipe(box.x + box.width / 2, box.y + box.height / 2, 0, laneHeight);
+  g = await geometry(page, "A");
+  check(
+    "phone: touch drag moves a clip to another track",
+    g.lane === "t2",
+    at(g),
+  );
+  const lane = await page.locator('[data-track-id="t1"]').boundingBox();
+  const before = await page
+    .locator(".scroller")
+    .evaluate((el) => el.scrollLeft);
+  await swipe(360, lane.y + lane.height / 2, -150, 0);
+  const after = await page.locator(".scroller").evaluate((el) => el.scrollLeft);
+  check(
+    "phone: swiping an empty lane still scrolls the timeline",
+    after > before,
+    `${before} -> ${after}`,
+  );
+  await context.close();
+}
+
 (async () => {
   const browser = await chromium.launch({
     args: ["--autoplay-policy=no-user-gesture-required"],
@@ -564,6 +632,7 @@ async function keyboardOnlyClipEdits(browser) {
     await recordIntoClip(browser);
     await dragClips(browser);
     await keyboardOnlyClipEdits(browser);
+    await touchDrags(browser);
     await stretchedClipRepeats(browser);
     await loopRegion(browser);
     await wavCoversSong(browser);
