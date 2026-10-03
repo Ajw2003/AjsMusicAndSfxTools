@@ -1,6 +1,6 @@
-# Today (tier 5): 2026-10-03, handoff
+# Today (tier 5): 2026-10-03, handoff (updated after #72/#73/#76)
 
-**Session paused on the owner's request (usage running out). Read this first, then
+**Read this first, then
 [ProjectState](../3-state/ProjectState.md) and [the arranger plan](../plans/arranger-timeline.md).**
 
 ## Where things are
@@ -13,23 +13,18 @@
   - **#71 done (not merged):** song format v2 with clips + automatic upgrade of old songs/autosaves
     (commit e796095). Re-checked by the parent: lint/format/types clean, 95 unit tests, browser test
     `song-v2.cjs` 23/23 and `files-v2.cjs` all pass. The app still looks and behaves like the prototype.
-- **#72/#73/#76 (timeline view, playback, record into clip): started, NOT finished.** The builder was stopped
-  mid-way. Its partial work is saved, **unverified**, as `docs/plans/arranger-a2-a3-wip.patch` (applies
-  cleanly on top of 83b6d94). It has: `timeline-view.ts` helpers + tests, `ClipBlock.svelte`,
-  `TrackHeader.svelte`, engine changes (seek/linear transport/loop toggle), part of `TransportBar.svelte`.
-  Missing: `Timeline.svelte`, App wiring, New clip / record-into-clip, export choice, browser checks.
+- **#72/#73/#76 done (not merged), 2026-10-03:** the WIP patch was applied, finished and the patch file deleted.
+  Timeline view, playback from the playhead, Loop toggle, New clip, record into clips, whole-song export.
+  Checked: types/lint/format clean, 102 unit tests, build, browser check `e2e/timeline.cjs` 22/22 twice.
+  Run it with a dev server up: `NODE_PATH=<global node_modules with playwright> node e2e/timeline.cjs`.
 
 ## Next session, in order
 
-1. Decide: apply the patch (`git apply docs/plans/arranger-a2-a3-wip.patch`) and finish it, or discard it and
-   rebuild #72/#73/#76 from the plan. Either way delete the patch file in the same commit.
-2. Finish phase A: #72, #73, #76, then #74 (drag move/stretch/trim with snap) and #75 (clip inspector,
-   split, duplicate, copy/paste). Browser-check each step; the test scripts are not in the repo (they lived in
-   the old session's scratch folder), so write `e2e` checks again or add Playwright to the repo (ask first,
-   it's a new dependency).
-3. Open a PR for phase A, CI green, then merge **only if the owner says so**: they have not yet answered
+1. #74 (drag move/stretch/trim with snap) and #75 (clip inspector, split, duplicate, copy/paste). Extend
+   `e2e/timeline.cjs` for each. Adding Playwright as a dev dependency needs the owner's yes.
+2. Open a PR for phase A, CI green, then merge **only if the owner says so**: they have not yet answered
    whether the agent may merge each phase itself.
-4. Then phase B (#77 chord builder, #78 one-key chord pads), C (#79–#81 audio files), D (#82 microphone).
+3. Then phase B (#77 chord builder, #78 one-key chord pads), C (#79–#81 audio files), D (#82 microphone).
 
 ## Open questions for the owner
 

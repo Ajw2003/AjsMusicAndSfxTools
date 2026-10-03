@@ -4,8 +4,17 @@
 repeats its source loop (`loopBeats`) to fill `lengthBeats`, trimmed by `offsetBeats`; `expandClipNotes`
 turns a clip into absolute timeline notes for the engine. Old (v1) songs and autosaves upgrade on load in
 `src/lib/song/storage.ts` (each track's notes become one clip at bar 1; loop region = the old loop).
-The UI still shows only the loop region; the timeline view is #73. Recording goes into each track's first
-clip (`recorder.ts`), one pass = one undo step. A `batch` command groups multi-step edits into one undo.
+A `batch` command groups multi-step edits into one undo.
+
+**Timeline view and recording into clips, 2026-10-03 (#72, #73, #76):** `src/components/Timeline.svelte` shows
+track lanes (`TrackHeader.svelte`, `ClipBlock.svelte`) under a bar ruler; geometry, zoom and ruler ticks are
+pure helpers in `src/lib/song/timeline-view.ts`. Record picks its target with `recordTarget`
+(`timeline-view.ts:108`): the selected clip, else the selected track's clip under the playhead, else a new clip
+at that bar (made only once a note is played, so an empty take leaves nothing behind). While recording the
+transport loops the target's first pass (`regionFor`/`aimRecording`, `src/App.svelte:214`); notes are
+recorded relative to that span and moved into the clip's source loop by `toClipSource` (`timeline-view.ts:138`),
+which accounts for trim. One pass is still one undo step. Not built yet: dragging clips (#74), the clip inspector,
+split, duplicate, copy/paste (#75).
 
 ## What it owns
 

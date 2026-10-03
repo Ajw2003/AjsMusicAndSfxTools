@@ -3,7 +3,15 @@
 **Built?** Mostly, 2026-10-03, for the chiptune prototype (#68): `AudioEngine` in `src/lib/audio/engine.ts:193`.
 Differs from the design below: the transport counts in ticks (PPQ 192); muting works by not
 scheduling a track (`setSong`, `engine.ts:296`), so live play ignores mute; count-in is
-`playWithCountIn` (`engine.ts:374`); export is `renderWav` (`engine.ts:419`). Latency not measured yet (#15).
+`playWithCountIn` (`engine.ts:469`); export is `renderWav` (`engine.ts:535`). Latency not measured yet (#15).
+
+**Arranger transport (2026-10-03, #72):** `setSong` (`engine.ts:367`) schedules every clip over the whole
+timeline. The transport runs linearly from the playhead and stops itself at the song end (`#scheduleEnd`,
+`engine.ts:407`) unless looping. Looping is a toggle over the song's loop region (`setLoopEnabled`,
+`engine.ts:351`); recording forces its own region over the target clip (`setLoopOverride`, `engine.ts:357`),
+which wins over the toggle. `pause` keeps the playhead, `stop` returns it to 0, `seek` moves it (and snaps it
+into the active loop). `currentBeat()` is the absolute timeline beat. `renderWav(song, { range, passes })`
+exports the whole song or N passes of the loop region.
 
 ## What it owns
 
