@@ -1,6 +1,13 @@
 import { describe, expect, it } from "vitest";
-import { noteRects, noteSummary, positionLabel } from "./loop-view";
-import type { Note } from "./song";
+import {
+  laneNotes,
+  loopSpan,
+  noteRects,
+  noteSummary,
+  positionLabel,
+  workingNoteCount,
+} from "./loop-view";
+import { createNoteClip, createSong, createTrack, type Note } from "./song";
 
 const n = (id: string, pitch: number, startBeat: number, d = 1): Note => ({
   id,
@@ -33,5 +40,32 @@ describe("loop view helpers", () => {
   it("labels positions", () => {
     expect(positionLabel(0, 4)).toBe("Bar 1 · Beat 1");
     expect(positionLabel(6.9, 4)).toBe("Bar 2 · Beat 3");
+  });
+});
+
+describe("clip-aware lane helpers", () => {
+  const track = () => {
+    const t = createTrack("square");
+    const clip = createNoteClip(4, 4);
+    clip.lengthBeats = 8;
+    clip.content = { kind: "notes", notes: [n("a", 60, 1)] };
+    t.clips = [clip];
+    return t;
+  };
+  it("uses the loop region, else the whole song", () => {
+    const s = createSong();
+    expect(loopSpan(s)).toEqual({ start: 0, end: 16 });
+    s.loopRegion = null;
+    expect(loopSpan(s)).toEqual({ start: 0, end: 16 });
+  });
+  it("shows expanded notes inside the span relative to its start", () => {
+    const out = laneNotes(track(), { start: 4, end: 8 });
+    expect(out.map((x) => x.startBeat)).toEqual([1]);
+    const all = laneNotes(track(), { start: 0, end: 16 });
+    expect(all.map((x) => x.startBeat)).toEqual([5, 9]);
+  });
+  it("counts notes in the working clip only", () => {
+    expect(workingNoteCount(track())).toBe(1);
+    expect(workingNoteCount(createTrack("square"))).toBe(0);
   });
 });

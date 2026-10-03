@@ -3,15 +3,18 @@
   import type { ChiptuneSoundId } from "../lib/audio/chiptune";
   import {
     NOTE_HEIGHT_PCT,
+    laneNotes,
     noteRects,
     noteSummary,
+    workingNoteCount,
   } from "../lib/song/loop-view";
   import type { Track } from "../lib/song/song";
 
   interface Props {
     tracks: Track[];
     selectedId: string;
-    bars: number;
+    /** The visible loop, in timeline beats. */
+    loop: { start: number; end: number };
     beatsPerBar: number;
     /** Playhead position in beats, or null when stopped. */
     playhead: number | null;
@@ -28,7 +31,7 @@
   let {
     tracks,
     selectedId,
-    bars,
+    loop,
     beatsPerBar,
     playhead,
     maxTracks,
@@ -39,7 +42,8 @@
     onAdd,
   }: Props = $props();
 
-  const loopLength = $derived(bars * beatsPerBar);
+  const loopLength = $derived(loop.end - loop.start);
+  const bars = $derived(loopLength / beatsPerBar);
   const isFull = $derived(tracks.length >= maxTracks);
   let newSound = $state<ChiptuneSoundId>("square");
   // Slider value while dragging; committed (one undo step) on release.
@@ -133,7 +137,7 @@
           <button
             type="button"
             aria-label="Clear notes on {track.name}"
-            disabled={track.notes.length === 0}
+            disabled={workingNoteCount(track) === 0}
             onclick={() => onClear(track.id)}
           >
             Clear
@@ -154,7 +158,7 @@
             style:--beats={loopLength}
             style:--bars={bars}
           >
-            {#each noteRects(track.notes, loopLength) as r (r.id)}
+            {#each noteRects(laneNotes(track, loop), loopLength) as r (r.id)}
               <span
                 class="note"
                 style:left="{r.left}%"
@@ -171,7 +175,7 @@
             {/if}
           </div>
           <span class="summary" data-testid="note-summary">
-            {noteSummary(track.notes.length)}
+            {noteSummary(workingNoteCount(track))}
           </span>
         </div>
       </li>

@@ -1,4 +1,40 @@
-import type { Note } from "./song";
+import {
+  songEndBeat,
+  trackNotesInRange,
+  type Clip,
+  type Note,
+  type Song,
+  type Track,
+} from "./song";
+
+/** The stretch of timeline the user sees and loops: the loop region, else the whole song. */
+export function loopSpan(song: Song): { start: number; end: number } {
+  return song.loopRegion
+    ? { start: song.loopRegion.startBeat, end: song.loopRegion.endBeat }
+    : { start: 0, end: songEndBeat(song) };
+}
+
+/** A track's working clip: its first clip, which recording goes into. */
+export function workingClip(track: Track): Clip | undefined {
+  return track.clips[0];
+}
+
+/** Number of notes in the working clip. */
+export function workingNoteCount(track: Track): number {
+  const c = workingClip(track);
+  return c && c.content.kind === "notes" ? c.content.notes.length : 0;
+}
+
+/** The notes shown in a lane: clips expanded, inside the span, relative to its start. */
+export function laneNotes(
+  track: Track,
+  span: { start: number; end: number },
+): Note[] {
+  return trackNotesInRange(track, span.start, span.end).map((n) => ({
+    ...n,
+    startBeat: n.startBeat - span.start,
+  }));
+}
 
 export interface NoteRect {
   id: string;

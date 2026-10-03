@@ -12,11 +12,13 @@
   import {
     SongHistory,
     createSong,
+    createNoteClip,
     createTrack,
-    loopBeats,
     type Song,
+    type SongCommand,
     type Track,
   } from "./lib/song/song";
+  import { loopSpan, workingClip } from "./lib/song/loop-view";
   import { loadAutosave, saveAutosave } from "./lib/song/storage";
 
   const MAX_TRACKS = 8;
@@ -48,6 +50,8 @@
   );
   const preset = $derived(getPreset(selected.sound));
   const isDrums = $derived(selected.sound === "noise");
+  const loop = $derived(loopSpan(song));
+  const loopLength = $derived(loop.end - loop.start);
   const showPlayhead = $derived(isPlaying && !isCountingIn);
 
   // Kick (below C4) must be reachable on drum tracks, so they start at C3.
@@ -98,24 +102,63 @@
 
   // ---- Recording ----
 
+  /** Position in the loop (0 at the loop start), in beats. */
+  function loopBeat(): number {
+    return engine.currentBeat() - loopSpan(history.song).start;
+  }
+
   function commitNotes(
     trackId: string,
     notes: ReturnType<typeof recorder.collect>,
   ) {
     if (notes.length === 0) return;
-    if (!history.song.tracks.some((t) => t.id === trackId)) return;
-    history.apply({ type: "addNotes", trackId, notes });
+    const song = history.song;
+    const track = song.tracks.find((t) => t.id === trackId);
+    if (!track) return;
+    const clip = workingClip(track);
+    if (clip) {
+      history.apply({ type: "addNotesToClip", clipId: clip.id, notes });
+      return;
+    }
+    // No clip yet on this track: make one the length of the loop, then record.
+    const { start, end } = loopSpan(song);
+    const created = createNoteClip(start, end - start, track.name);
+    history.apply({
+      type: "batch",
+      commands: [
+        { type: "addClip", trackId, clip: created },
+        { type: "addNotesToClip", clipId: created.id, notes },
+      ],
+    });
   }
 
   function commitTake(): void {
-    commitNotes(selectedId, recorder.collect(loopBeats(history.song)));
+    const { start, end } = loopSpan(history.song);
+    commitNotes(selectedId, recorder.collect(end - start));
   }
 
   function flushTake(): void {
-    commitNotes(
-      selectedId,
-      recorder.flushAll(engine.currentBeat(), loopBeats(history.song)),
-    );
+    const { start, end } = loopSpan(history.song);
+    commitNotes(selectedId, recorder.flushAll(loopBeat(), end - start));
+  }
+
+  /** The Bars select: the loop AND every track's working clip become this long. */
+  function onBars(bars: number): void {
+    const length = Math.min(8, Math.max(1, Math.round(bars))) * 4;
+    const commands: SongCommand[] = [
+      { type: "setLoopRegion", region: { startBeat: 0, endBeat: length } },
+    ];
+    for (const t of history.song.tracks) {
+      const c = workingClip(t);
+      if (c) {
+        commands.push({
+          type: "updateClip",
+          clipId: c.id,
+          changes: { lengthBeats: length, loopBeats: length },
+        });
+      }
+    }
+    history.apply({ type: "batch", commands });
   }
 
   function stopAll(): void {
@@ -169,7 +212,7 @@
       if (beat !== 0) beat = 0;
       return;
     }
-    const b = engine.currentBeat();
+    const b = engine.currentBeat() - loopSpan(history.song).start;
     if (prevBeat !== null && b < prevBeat && isRecording) commitTake();
     prevBeat = b;
     beat = b;
@@ -196,13 +239,13 @@
     if (!isReady) return;
     engine.noteOn(selected.id, midi, velocity);
     if (isRecording && engine.isPlaying && !engine.isCountingIn) {
-      recorder.noteOn(midi, velocity, engine.currentBeat());
+      recorder.noteOn(midi, velocity, loopBeat());
     }
   }
   function onNoteOff(midi: number): void {
     if (!isReady) return;
     engine.noteOff(selected.id, midi);
-    if (engine.isPlaying) recorder.noteOff(midi, engine.currentBeat());
+    if (engine.isPlaying) recorder.noteOff(midi, loopBeat());
   }
 
   // ---- Song edits ----
@@ -275,7 +318,7 @@
 
   <TransportBar
     bpm={song.bpm}
-    bars={song.bars}
+    bars={loopLength / song.beatsPerBar}
     {beat}
     {isPlaying}
     {isCountingIn}
@@ -287,7 +330,7 @@
     {onPlayStop}
     {onRecordToggle}
     onBpm={(bpm) => history.apply({ type: "setBpm", bpm })}
-    onBars={(bars) => history.apply({ type: "setBars", bars })}
+    {onBars}
     onMetronome={(on) => (metronomeOn = on)}
     onQuantize={(g) => {
       quantizeGrid = g;
@@ -300,13 +343,17 @@
   <TrackList
     tracks={song.tracks}
     selectedId={selected.id}
-    bars={song.bars}
+    {loop}
     beatsPerBar={song.beatsPerBar}
     playhead={showPlayhead ? beat : null}
     maxTracks={MAX_TRACKS}
     onSelect={selectTrack}
     {onUpdate}
-    onClear={(id) => history.apply({ type: "clearTrack", trackId: id })}
+    onClear={(id) => {
+      const track = song.tracks.find((t) => t.id === id);
+      const clip = track && workingClip(track);
+      if (clip) history.apply({ type: "clearClip", clipId: clip.id });
+    }}
     {onRemove}
     {onAdd}
   />
