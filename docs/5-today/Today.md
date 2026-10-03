@@ -25,7 +25,7 @@
 
 ## What to do next, in order
 
-1. Owner runs the app once on their PC (steps in the landing page) to tick off M0, then closes #1–#5.
+1. Owner runs the app once on their PC (commands in the landing page's Commands table) to tick off M0, then closes #1–#5.
 2. M1 starts with "start the sound on first click" (#7) and the on-screen keyboard (#8). Every
    other M1 issue builds on those two.
 3. #17 (sample sourcing) can run any time, in parallel, since it's research only.
