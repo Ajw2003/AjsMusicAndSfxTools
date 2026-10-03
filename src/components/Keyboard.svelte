@@ -15,6 +15,8 @@
     octaveBaseMidi,
     pianoKeys,
   } from "../lib/input/piano-keys";
+  import { isTyping } from "../lib/input/is-typing";
+  import { drumLabel } from "../lib/audio/drums";
   import { midiToNoteName } from "../lib/note-names";
 
   interface Props {
@@ -22,18 +24,28 @@
     onNoteOff: (midi: number) => void;
     /** Glow colour for pressed keys (the active sound's colour). */
     colour: string;
+    /** Show drum names (Kick/Snare/Hat) instead of note names. */
+    drums?: boolean;
+    /** Number of octaves drawn (phones use 1). */
+    octaves?: number;
+    octave?: number;
   }
-  let { onNoteOn, onNoteOff, colour }: Props = $props();
+  let {
+    onNoteOn,
+    onNoteOff,
+    colour,
+    drums = false,
+    octaves = 2,
+    octave = $bindable(DEFAULT_OCTAVE),
+  }: Props = $props();
 
   const VELOCITY = 0.8;
-  const OCTAVES = 2;
 
-  let octave = $state(DEFAULT_OCTAVE);
   let layoutId = $state<LayoutId>("piano");
 
   const layout = $derived(getLayout(layoutId));
   const baseMidi = $derived(octaveBaseMidi(octave));
-  const keys = $derived(pianoKeys(baseMidi, OCTAVES));
+  const keys = $derived(pianoKeys(baseMidi, octaves));
   const whiteKeys = $derived(keys.filter((k) => !k.isBlack));
   const blackKeys = $derived(
     keys
@@ -108,21 +120,6 @@
   // This is the keyboard-accessible way to play: the on-screen keys are
   // tabindex -1 so the page doesn't get 25 tab stops, and every note has a
   // computer key bound to it (shown on the key).
-  function isTyping(target: EventTarget | null): boolean {
-    if (!(target instanceof HTMLElement)) return false;
-    if (target.isContentEditable) return true;
-    if (
-      target instanceof HTMLTextAreaElement ||
-      target instanceof HTMLSelectElement
-    )
-      return true;
-    if (target instanceof HTMLInputElement) {
-      // Radios, sliders and checkboxes don't consume letter keys.
-      return !["radio", "range", "checkbox", "button"].includes(target.type);
-    }
-    return false;
-  }
-
   function onWindowKeydown(e: KeyboardEvent): void {
     if (e.repeat || e.ctrlKey || e.metaKey || e.altKey || isTyping(e.target))
       return;
@@ -157,13 +154,15 @@
 
   function labelFor(midi: number): string {
     const bound = boundLabel(midi);
-    return bound
-      ? `${midiToNoteName(midi)}, key ${bound}`
+    const name = drums
+      ? `${drumLabel(midi)} (${midiToNoteName(midi)})`
       : midiToNoteName(midi);
+    return bound ? `${name}, key ${bound}` : name;
   }
 
   /** Note name; the octave number is only shown on C to save space. */
   function shortName(midi: number): string {
+    if (drums) return drumLabel(midi);
     const name = midiToNoteName(midi);
     return name.startsWith("C") && !name.startsWith("C#")
       ? name
@@ -180,7 +179,13 @@
 />
 <svelte:document onvisibilitychange={onVisibilityChange} />
 
-<section class="keyboard" aria-label="Keyboard" style:--glow={colour}>
+<section
+  class="keyboard"
+  class:drums
+  aria-label="Keyboard"
+  style:--glow={colour}
+  style:--black-w="calc(100% / {whiteKeys.length} * 0.62)"
+>
   <div class="controls">
     <label>
       Computer keys
@@ -258,7 +263,6 @@
 
 <style>
   .keyboard {
-    --black-w: calc(100% / 15 * 0.62);
     width: 100%;
   }
   .controls {
@@ -347,6 +351,32 @@
     background: var(--glow);
     color: #111;
     box-shadow: 0 0 1rem var(--glow);
+  }
+  .drums .note {
+    font-size: clamp(0.5rem, 1.8vw, 0.8rem);
+  }
+  @media (max-width: 600px) {
+    .piano {
+      height: 9.5rem;
+    }
+    .white {
+      /* 8 keys must fit a 360px screen (about 41px each). */
+      min-width: 0;
+    }
+    /* Touch screens don't need the computer-key layout picker. */
+    .controls label {
+      display: none;
+    }
+    .controls {
+      margin-bottom: 0.5rem;
+      gap: 0.5rem 1rem;
+    }
+    .note {
+      font-size: 0.85rem;
+    }
+    .drums .note {
+      font-size: 0.55rem;
+    }
   }
   @media (prefers-reduced-motion: no-preference) {
     .key {

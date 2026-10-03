@@ -1,40 +1,242 @@
 <script lang="ts">
+  import { onMount } from "svelte";
   import Keyboard from "./components/Keyboard.svelte";
+  import SongFileBar from "./components/SongFileBar.svelte";
   import StartOverlay from "./components/StartOverlay.svelte";
-  import {
-    CHIPTUNE_PRESETS,
-    getPreset,
-    type ChiptuneSoundId,
-  } from "./lib/audio/chiptune";
+  import TrackList from "./components/TrackList.svelte";
+  import TransportBar from "./components/TransportBar.svelte";
+  import { getPreset, type ChiptuneSoundId } from "./lib/audio/chiptune";
   import { engine } from "./lib/audio/engine";
-  import { SongHistory, createSong, type Song } from "./lib/song/song";
+  import { isTyping } from "./lib/input/is-typing";
+  import { TakeRecorder } from "./lib/song/recorder";
+  import {
+    SongHistory,
+    createSong,
+    createTrack,
+    loopBeats,
+    type Song,
+    type Track,
+  } from "./lib/song/song";
+  import { loadAutosave, saveAutosave } from "./lib/song/storage";
 
-  const history = new SongHistory(createSong());
+  const MAX_TRACKS = 8;
+  const DEFAULT_QUANTIZE = 0.25;
+  const AUTOSAVE_DELAY_MS = 800;
+
+  const history = new SongHistory(loadAutosave(localStorage) ?? createSong());
   let song = $state<Song>(history.song);
-  history.subscribe((s) => (song = s));
-
-  // Chunk 3 will let the user pick the armed track; for now it is the first.
-  const track = $derived(song.tracks[0]);
-  const preset = $derived(getPreset(track.sound));
-
+  let canUndo = $state(false);
+  let canRedo = $state(false);
+  let selectedId = $state(history.song.tracks[0].id);
   let masterDb = $state(-6);
   let isReady = $state(false);
 
-  function onStarted(): void {
-    engine.setMasterVolumeDb(masterDb);
-    engine.syncTracks(song.tracks);
-    isReady = true;
+  let isPlaying = $state(false);
+  let isCountingIn = $state(false);
+  let isRecording = $state(false);
+  let beat = $state(0);
+  let metronomeOn = $state(false);
+  let quantizeGrid = $state(DEFAULT_QUANTIZE);
+  let isPhone = $state(false);
+
+  const recorder = new TakeRecorder();
+  recorder.quantizeGrid = DEFAULT_QUANTIZE;
+  let saveTimer: ReturnType<typeof setTimeout> | undefined;
+
+  const selected = $derived<Track>(
+    song.tracks.find((t) => t.id === selectedId) ?? song.tracks[0],
+  );
+  const preset = $derived(getPreset(selected.sound));
+  const isDrums = $derived(selected.sound === "noise");
+  const showPlayhead = $derived(isPlaying && !isCountingIn);
+
+  // Kick (below C4) must be reachable on drum tracks, so they start at C3.
+  let octave = $derived(isDrums ? 3 : 4);
+  $effect(() => {
+    if (isReady) engine.setMetronome(metronomeOn);
+  });
+
+  /** Push the song to the engine. Muting works by not scheduling notes. */
+  function applySong(s: Song): void {
+    if (!isReady) return;
+    engine.syncTracks(s.tracks);
+    engine.setSong(s);
   }
 
-  function chooseSound(sound: ChiptuneSoundId): void {
-    if (sound === track.sound) return;
+  function flushSave(): void {
+    if (saveTimer === undefined) return;
+    clearTimeout(saveTimer);
+    saveTimer = undefined;
+    saveAutosave(localStorage, history.song);
+  }
+
+  let isFirstSubscribe = true;
+  history.subscribe((s) => {
+    song = s;
+    canUndo = history.canUndo;
+    canRedo = history.canRedo;
+    if (!s.tracks.some((t) => t.id === selectedId)) {
+      selectedId = s.tracks[0].id;
+    }
+    applySong(s);
+    if (isFirstSubscribe) {
+      isFirstSubscribe = false;
+      return;
+    }
+    clearTimeout(saveTimer);
+    saveTimer = setTimeout(() => {
+      saveTimer = undefined;
+      saveAutosave(localStorage, s);
+    }, AUTOSAVE_DELAY_MS);
+  });
+
+  function onStarted(): void {
+    engine.setMasterVolumeDb(masterDb);
+    isReady = true;
+    applySong(history.song);
+  }
+
+  // ---- Recording ----
+
+  function commitNotes(
+    trackId: string,
+    notes: ReturnType<typeof recorder.collect>,
+  ) {
+    if (notes.length === 0) return;
+    if (!history.song.tracks.some((t) => t.id === trackId)) return;
+    history.apply({ type: "addNotes", trackId, notes });
+  }
+
+  function commitTake(): void {
+    commitNotes(selectedId, recorder.collect(loopBeats(history.song)));
+  }
+
+  function flushTake(): void {
+    commitNotes(
+      selectedId,
+      recorder.flushAll(engine.currentBeat(), loopBeats(history.song)),
+    );
+  }
+
+  function stopAll(): void {
+    if (isRecording) flushTake();
+    isRecording = false;
+    engine.stop();
+    isPlaying = false;
+    isCountingIn = false;
+    beat = 0;
+    prevBeat = null;
+  }
+
+  function onPlayStop(): void {
+    if (!isReady) return;
+    if (isPlaying || isCountingIn || engine.isPlaying) stopAll();
+    else engine.play();
+  }
+
+  function onRecordToggle(): void {
+    if (!isReady) return;
+    if (isRecording) {
+      flushTake();
+      isRecording = false;
+      return;
+    }
+    isRecording = true;
+    if (!engine.isPlaying && !engine.isCountingIn) engine.playWithCountIn(4);
+  }
+
+  function selectTrack(id: string): void {
+    if (id === selectedId) return;
+    // Notes played so far belong to the track they were played on.
+    if (isRecording && engine.isPlaying) flushTake();
     engine.releaseAll();
-    history.apply({
-      type: "updateTrack",
-      trackId: track.id,
-      changes: { sound },
-    });
-    if (isReady) engine.syncTracks(history.song.tracks);
+    selectedId = id;
+  }
+
+  // Watches the transport: mirrors state into the UI and, when the loop
+  // wraps, commits the pass just played as ONE undo step.
+  let prevBeat: number | null = null;
+  let frame = 0;
+  function tick(): void {
+    frame = requestAnimationFrame(tick);
+    if (!isReady) return;
+    const playing = engine.isPlaying;
+    const counting = engine.isCountingIn;
+    if (playing !== isPlaying) isPlaying = playing;
+    if (counting !== isCountingIn) isCountingIn = counting;
+    if (!playing) {
+      prevBeat = null;
+      if (beat !== 0) beat = 0;
+      return;
+    }
+    const b = engine.currentBeat();
+    if (prevBeat !== null && b < prevBeat && isRecording) commitTake();
+    prevBeat = b;
+    beat = b;
+  }
+
+  onMount(() => {
+    frame = requestAnimationFrame(tick);
+    const mq = window.matchMedia("(max-width: 600px)");
+    const onMq = () => (isPhone = mq.matches);
+    onMq();
+    mq.addEventListener("change", onMq);
+    return () => {
+      cancelAnimationFrame(frame);
+      mq.removeEventListener("change", onMq);
+      flushSave();
+    };
+  });
+
+  // ---- Keyboard play ----
+
+  // Live play always sounds on the selected track. Keys pressed before audio
+  // has started (e.g. the key that dismissed the overlay) are ignored.
+  function onNoteOn(midi: number, velocity: number): void {
+    if (!isReady) return;
+    engine.noteOn(selected.id, midi, velocity);
+    if (isRecording && engine.isPlaying && !engine.isCountingIn) {
+      recorder.noteOn(midi, velocity, engine.currentBeat());
+    }
+  }
+  function onNoteOff(midi: number): void {
+    if (!isReady) return;
+    engine.noteOff(selected.id, midi);
+    if (engine.isPlaying) recorder.noteOff(midi, engine.currentBeat());
+  }
+
+  // ---- Song edits ----
+
+  function onUpdate(
+    id: string,
+    changes: Partial<Pick<Track, "name" | "sound" | "volumeDb" | "isMuted">>,
+  ): void {
+    if (changes.sound) engine.releaseAll();
+    history.apply({ type: "updateTrack", trackId: id, changes });
+  }
+
+  function onAdd(sound: ChiptuneSoundId): void {
+    const track = createTrack(sound);
+    history.apply({ type: "addTrack", track });
+    selectTrack(track.id);
+  }
+
+  function onRemove(id: string): void {
+    if (id === selectedId && isRecording && engine.isPlaying) flushTake();
+    engine.releaseAll();
+    history.apply({ type: "removeTrack", trackId: id });
+  }
+
+  function onReplace(next: Song): void {
+    stopAll();
+    history.replace(next);
+  }
+
+  function onUndo(): void {
+    history.undo();
+  }
+  function onRedo(): void {
+    history.redo();
   }
 
   function onMasterInput(e: Event & { currentTarget: HTMLInputElement }): void {
@@ -42,38 +244,72 @@
     engine.setMasterVolumeDb(masterDb);
   }
 
-  // Keys pressed before audio has started (e.g. the key that dismissed the
-  // overlay) are ignored rather than throwing.
-  function onNoteOn(midi: number, velocity: number): void {
-    if (isReady) engine.noteOn(track.id, midi, velocity);
-  }
-  function onNoteOff(midi: number): void {
-    if (isReady) engine.noteOff(track.id, midi);
+  function onWindowKeydown(e: KeyboardEvent): void {
+    if (!(e.ctrlKey || e.metaKey) || e.altKey || isTyping(e.target)) return;
+    if (e.code === "KeyZ" && !e.shiftKey) {
+      e.preventDefault();
+      onUndo();
+    } else if ((e.code === "KeyZ" && e.shiftKey) || e.code === "KeyY") {
+      e.preventDefault();
+      onRedo();
+    }
   }
 </script>
+
+<svelte:window onkeydown={onWindowKeydown} onpagehide={flushSave} />
+<svelte:document
+  onvisibilitychange={() => {
+    if (document.visibilityState === "hidden") flushSave();
+  }}
+/>
 
 <StartOverlay {onStarted} />
 
 <main>
-  <h1>AJ's Music & SFX Tools</h1>
+  <header>
+    <h1>AJ's Music & SFX Tools</h1>
+    <p class="help">
+      Pick a sound, press Record, play along with the loop. Add tracks to layer.
+    </p>
+  </header>
 
-  <fieldset class="sounds">
-    <legend>Sound</legend>
-    {#each CHIPTUNE_PRESETS as p (p.id)}
-      <label class="sound" class:selected={p.id === track.sound}>
-        <input
-          type="radio"
-          name="sound"
-          value={p.id}
-          checked={p.id === track.sound}
-          onchange={() => chooseSound(p.id)}
-        />
-        <span class="swatch" style:background={p.colour} aria-hidden="true"
-        ></span>
-        {p.name}
-      </label>
-    {/each}
-  </fieldset>
+  <TransportBar
+    bpm={song.bpm}
+    bars={song.bars}
+    {beat}
+    {isPlaying}
+    {isCountingIn}
+    {isRecording}
+    {canUndo}
+    {canRedo}
+    {metronomeOn}
+    {quantizeGrid}
+    {onPlayStop}
+    {onRecordToggle}
+    onBpm={(bpm) => history.apply({ type: "setBpm", bpm })}
+    onBars={(bars) => history.apply({ type: "setBars", bars })}
+    onMetronome={(on) => (metronomeOn = on)}
+    onQuantize={(g) => {
+      quantizeGrid = g;
+      recorder.quantizeGrid = g;
+    }}
+    {onUndo}
+    {onRedo}
+  />
+
+  <TrackList
+    tracks={song.tracks}
+    selectedId={selected.id}
+    bars={song.bars}
+    beatsPerBar={song.beatsPerBar}
+    playhead={showPlayhead ? beat : null}
+    maxTracks={MAX_TRACKS}
+    onSelect={selectTrack}
+    {onUpdate}
+    onClear={(id) => history.apply({ type: "clearTrack", trackId: id })}
+    {onRemove}
+    {onAdd}
+  />
 
   <label class="volume">
     Master volume
@@ -88,59 +324,43 @@
     <output>{masterDb} dB</output>
   </label>
 
-  <Keyboard {onNoteOn} {onNoteOff} colour={preset.colour} />
+  <SongFileBar {song} {onReplace} />
+
+  <div class="dock">
+    <Keyboard
+      {onNoteOn}
+      {onNoteOff}
+      colour={preset.colour}
+      drums={isDrums}
+      octaves={isPhone && !isDrums ? 1 : 2}
+      bind:octave
+    />
+  </div>
 </main>
 
 <style>
   main {
     box-sizing: border-box;
     max-width: 60rem;
+    min-height: 100dvh;
     margin: 0 auto;
-    padding: 1rem;
+    padding: 1rem 1rem 0;
     display: flex;
     flex-direction: column;
     gap: 1rem;
+  }
+  header {
+    display: flex;
+    flex-direction: column;
+    gap: 0.25rem;
   }
   h1 {
     margin: 0;
     font-size: 1.5rem;
   }
-  fieldset {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 0.5rem;
+  .help {
     margin: 0;
-    padding: 0.5rem 0.75rem 0.75rem;
-    border: 1px solid var(--color-border);
-    border-radius: 0.5rem;
-  }
-  .sound {
-    display: flex;
-    align-items: center;
-    gap: 0.5rem;
-    min-height: 2.75rem;
-    padding: 0 0.75rem;
-    background: var(--color-surface);
-    border: 1px solid var(--color-border);
-    border-radius: 0.5rem;
-    cursor: pointer;
-  }
-  .sound.selected {
-    border-color: var(--color-accent);
-  }
-  .sound:has(input:focus-visible) {
-    outline: 3px solid var(--color-accent);
-    outline-offset: 2px;
-  }
-  .sound input {
-    width: 1.1rem;
-    height: 1.1rem;
-    margin: 0;
-  }
-  .swatch {
-    width: 1rem;
-    height: 1rem;
-    border-radius: 50%;
+    color: var(--color-muted);
   }
   .volume {
     display: flex;
@@ -155,5 +375,26 @@
   .volume output {
     min-width: 4rem;
     color: var(--color-muted);
+  }
+  /* Pinned to the bottom of the viewport; stays in the flow, so nothing
+     is ever hidden behind it. */
+  .dock {
+    position: sticky;
+    bottom: 0;
+    z-index: 5;
+    margin: auto -1rem 0;
+    padding: 0.75rem 1rem calc(0.75rem + env(safe-area-inset-bottom));
+    background: var(--color-bg);
+    border-top: 1px solid var(--color-border);
+  }
+  @media (max-width: 600px) {
+    main {
+      padding: 0.75rem 0.75rem 0;
+      gap: 0.75rem;
+    }
+    .dock {
+      margin: auto -0.75rem 0;
+      padding: 0.5rem 0.75rem calc(0.5rem + env(safe-area-inset-bottom));
+    }
   }
 </style>

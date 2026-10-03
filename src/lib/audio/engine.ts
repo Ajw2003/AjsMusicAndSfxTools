@@ -1,6 +1,7 @@
 // The ONLY file in the app that imports Tone.js.
 import * as Tone from "tone";
 import { getPreset, type ChiptunePreset } from "./chiptune";
+import { drumKind } from "./drums";
 import { encodeWav } from "./wav";
 import { loopBeats, type Song, type Track } from "../song/song";
 
@@ -21,15 +22,6 @@ interface Voice {
   play(midi: number, seconds: number, velocity: number, time: number): void;
   releaseAll(): void;
   dispose(): void;
-}
-
-type DrumKind = "kick" | "snare" | "hat";
-
-/** Pitch picks the drum colour: low = kick, middle = snare, high = hat. */
-function drumKind(midi: number): DrumKind {
-  if (midi < 60) return "kick";
-  if (midi < 72) return "snare";
-  return "hat";
 }
 
 function buildNoiseVoice(preset: ChiptunePreset): Voice {
@@ -209,6 +201,8 @@ export class AudioEngine {
   #metronomeOn = false;
   #metronomeId: number | null = null;
   #click: Tone.Synth | null = null;
+  /** Audio time at which a pending count-in ends (0 = none). */
+  #countInEnd = 0;
   #beatsPerBar = 4;
 
   get isStarted(): boolean {
@@ -338,6 +332,15 @@ export class AudioEngine {
     this.#scheduleMetronome();
   }
 
+  #clickSynth(): Tone.Synth {
+    this.#click ??= new Tone.Synth({
+      oscillator: { type: "square" },
+      envelope: { attack: 0.001, decay: 0.03, sustain: 0, release: 0.01 },
+      volume: -12,
+    }).connect(this.#ensureMaster().volume);
+    return this.#click;
+  }
+
   #scheduleMetronome(): void {
     const transport = Tone.getTransport();
     if (this.#metronomeId !== null) {
@@ -345,12 +348,7 @@ export class AudioEngine {
       this.#metronomeId = null;
     }
     if (!this.#metronomeOn) return;
-    this.#click ??= new Tone.Synth({
-      oscillator: { type: "square" },
-      envelope: { attack: 0.001, decay: 0.03, sustain: 0, release: 0.01 },
-      volume: -12,
-    }).connect(this.#ensureMaster().volume);
-    const click = this.#click;
+    const click = this.#clickSynth();
     this.#metronomeId = transport.scheduleRepeat((time) => {
       const beat = Math.round(transport.getTicksAtTime(time) / PPQ);
       const isDownbeat = beat % this.#beatsPerBar === 0;
@@ -368,8 +366,34 @@ export class AudioEngine {
     Tone.getTransport().start();
   }
 
+  /**
+   * Play `beats` metronome clicks (even if the metronome is off), then start
+   * the transport from the loop start at the exact end of the last click.
+   * Both are placed on the audio clock, so the timing is sample-accurate.
+   */
+  playWithCountIn(beats = 4): void {
+    const spb = 60 / Tone.getTransport().bpm.value;
+    const click = this.#clickSynth();
+    const t0 = Tone.now() + 0.05;
+    for (let i = 0; i < beats; i++) {
+      click.triggerAttackRelease(
+        i % this.#beatsPerBar === 0 ? 1568 : 1046,
+        0.03,
+        t0 + i * spb,
+      );
+    }
+    this.#countInEnd = t0 + beats * spb;
+    Tone.getTransport().start(this.#countInEnd);
+  }
+
+  /** True between playWithCountIn() and the moment the loop starts. */
+  get isCountingIn(): boolean {
+    return this.#countInEnd > 0 && Tone.now() < this.#countInEnd;
+  }
+
   stop(): void {
     const transport = Tone.getTransport();
+    this.#countInEnd = 0;
     transport.stop();
     transport.position = 0;
     this.releaseAll();
