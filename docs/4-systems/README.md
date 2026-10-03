@@ -1,9 +1,8 @@
 # Systems (tier 4)
 
 > **Status on 2026-10-03: partly built for the chiptune prototype (#68).** Each document below started
-> as the agreed design; its "Built?" line says what exists now and where it differs. Each one
-> carries a "Built?" line; when a system is built, its doc is rewritten to describe the real
-> code and cite it to `file:line`.
+> as the agreed design; its "Built?" line says what exists now and where it differs,
+> citing the code as `file:line`. When a system is fully built, its body is rewritten to match.
 
 A system is something where, if it is wrong, the product stops working.
 
