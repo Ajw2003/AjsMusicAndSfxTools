@@ -3,8 +3,10 @@
 
   interface Props {
     bpm: number;
-    bars: number;
+    /** "New clip length" in bars. */
+    newClipBars: number;
     beat: number;
+    loopOn: boolean;
     isPlaying: boolean;
     isCountingIn: boolean;
     isRecording: boolean;
@@ -12,10 +14,13 @@
     canRedo: boolean;
     metronomeOn: boolean;
     quantizeGrid: number;
-    onPlayStop: () => void;
+    onPlayPause: () => void;
+    onBackToStart: () => void;
+    onLoop: (isOn: boolean) => void;
+    onNewClip: () => void;
     onRecordToggle: () => void;
     onBpm: (bpm: number) => void;
-    onBars: (bars: number) => void;
+    onNewClipBars: (bars: number) => void;
     onMetronome: (isOn: boolean) => void;
     onQuantize: (grid: number) => void;
     onUndo: () => void;
@@ -23,8 +28,9 @@
   }
   let {
     bpm,
-    bars,
+    newClipBars,
     beat,
+    loopOn,
     isPlaying,
     isCountingIn,
     isRecording,
@@ -32,10 +38,13 @@
     canRedo,
     metronomeOn,
     quantizeGrid,
-    onPlayStop,
+    onPlayPause,
+    onBackToStart,
+    onLoop,
+    onNewClip,
     onRecordToggle,
     onBpm,
-    onBars,
+    onNewClipBars,
     onMetronome,
     onQuantize,
     onUndo,
@@ -69,8 +78,12 @@
 
 <section class="transport" aria-label="Transport">
   <div class="row">
-    <button type="button" class="primary" onclick={onPlayStop}>
-      {busy ? "Stop" : "Play"}
+    <button type="button" class="primary" onclick={onPlayPause}>
+      {busy ? "Pause" : "Play"}
+    </button>
+    <button type="button" onclick={onBackToStart}>Back to start</button>
+    <button type="button" aria-pressed={loopOn} onclick={() => onLoop(!loopOn)}>
+      Loop
     </button>
     <button
       type="button"
@@ -81,7 +94,7 @@
       <span class="dot" aria-hidden="true"></span>
       Record
     </button>
-    <span class="position" aria-label="Loop position">
+    <span class="position" aria-label="Position">
       {isCountingIn ? "Count-in…" : positionLabel(beat, 4)}
     </span>
     <button type="button" disabled={!canUndo} onclick={onUndo}>Undo</button>
@@ -100,19 +113,20 @@
       />
     </label>
     <label>
-      Bars
+      New clip length
       <select
-        value={bars}
+        value={newClipBars}
         onchange={(e) => {
-          onBars(Number(e.currentTarget.value));
+          onNewClipBars(Number(e.currentTarget.value));
           blurAfter(e);
         }}
       >
         {#each BARS as b (b)}
-          <option value={b}>{b}</option>
+          <option value={b}>{b} {b === 1 ? "bar" : "bars"}</option>
         {/each}
       </select>
     </label>
+    <button type="button" onclick={onNewClip}>New clip</button>
     <label>
       Quantize
       <select

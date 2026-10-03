@@ -3,7 +3,7 @@
   import Keyboard from "./components/Keyboard.svelte";
   import SongFileBar from "./components/SongFileBar.svelte";
   import StartOverlay from "./components/StartOverlay.svelte";
-  import TrackList from "./components/TrackList.svelte";
+  import Timeline from "./components/Timeline.svelte";
   import TransportBar from "./components/TransportBar.svelte";
   import { getPreset, type ChiptuneSoundId } from "./lib/audio/chiptune";
   import { engine } from "./lib/audio/engine";
@@ -14,11 +14,19 @@
     createSong,
     createNoteClip,
     createTrack,
+    findClip,
+    type Clip,
+    type LoopRegion,
+    type Note,
     type Song,
-    type SongCommand,
     type Track,
   } from "./lib/song/song";
-  import { loopSpan, workingClip } from "./lib/song/loop-view";
+  import {
+    recordTarget,
+    snapDownToBar,
+    toClipSource,
+    type RecordTarget,
+  } from "./lib/song/timeline-view";
   import { loadAutosave, saveAutosave } from "./lib/song/storage";
 
   const MAX_TRACKS = 8;
@@ -39,6 +47,12 @@
   let beat = $state(0);
   let metronomeOn = $state(false);
   let quantizeGrid = $state(DEFAULT_QUANTIZE);
+  let loopOn = $state(false);
+  let newClipBars = $state(4);
+  let selectedClipId = $state<string | null>(null);
+  /** Where recorded notes go, and the span the transport loops while recording. */
+  let recordTargetNow: RecordTarget | null = null;
+  let recordRegion: LoopRegion | null = null;
   let isPhone = $state(false);
 
   const recorder = new TakeRecorder();
@@ -50,9 +64,6 @@
   );
   const preset = $derived(getPreset(selected.sound));
   const isDrums = $derived(selected.sound === "noise");
-  const loop = $derived(loopSpan(song));
-  const loopLength = $derived(loop.end - loop.start);
-  const showPlayhead = $derived(isPlaying && !isCountingIn);
 
   // Kick (below C4) must be reachable on drum tracks, so they start at C3.
   let octave = $derived(isDrums ? 3 : 4);
@@ -82,6 +93,7 @@
     if (!s.tracks.some((t) => t.id === selectedId)) {
       selectedId = s.tracks[0].id;
     }
+    if (selectedClipId && !findClip(s, selectedClipId)) selectedClipId = null;
     applySong(s);
     if (isFirstSubscribe) {
       isFirstSubscribe = false;
@@ -98,72 +110,68 @@
     engine.setMasterVolumeDb(masterDb);
     isReady = true;
     applySong(history.song);
+    engine.setLoopEnabled(loopOn);
+    engine.seek(beat);
   }
 
-  // ---- Recording ----
+  // ---- Transport ----
 
-  /** Position in the loop (0 at the loop start), in beats. */
-  function loopBeat(): number {
-    return engine.currentBeat() - loopSpan(history.song).start;
+  /** Set the loop region (the toggle stays as it is). */
+  function onLoopRegion(startBeat: number, endBeat: number): void {
+    history.apply({ type: "setLoopRegion", region: { startBeat, endBeat } });
   }
 
-  function commitNotes(
-    trackId: string,
-    notes: ReturnType<typeof recorder.collect>,
-  ) {
-    if (notes.length === 0) return;
-    const song = history.song;
-    const track = song.tracks.find((t) => t.id === trackId);
-    if (!track) return;
-    const clip = workingClip(track);
-    if (clip) {
-      history.apply({ type: "addNotesToClip", clipId: clip.id, notes });
+  function onLoop(isOn: boolean): void {
+    // Turning the loop on with no region loops the selected clip, else 4 bars.
+    if (isOn && !history.song.loopRegion) {
+      const clip = selectedClip();
+      onLoopRegion(
+        clip ? clip.startBeat : 0,
+        clip ? clip.startBeat + clip.lengthBeats : 16,
+      );
+    }
+    loopOn = isOn;
+    if (isReady) engine.setLoopEnabled(isOn);
+  }
+
+  function onSeek(to: number): void {
+    if (!isReady) {
+      beat = to;
       return;
     }
-    // No clip yet on this track: make one the length of the loop, then record.
-    const { start, end } = loopSpan(song);
-    const created = createNoteClip(start, end - start, track.name);
-    history.apply({
-      type: "batch",
-      commands: [
-        { type: "addClip", trackId, clip: created },
-        { type: "addNotesToClip", clipId: created.id, notes },
-      ],
-    });
+    // While recording, the engine keeps the playhead inside the clip.
+    engine.seek(to);
+    beat = engine.currentBeat();
+    prevBeat = null;
   }
 
-  function commitTake(): void {
-    const { start, end } = loopSpan(history.song);
-    commitNotes(selectedId, recorder.collect(end - start));
-  }
-
-  function flushTake(): void {
-    const { start, end } = loopSpan(history.song);
-    commitNotes(selectedId, recorder.flushAll(loopBeat(), end - start));
-  }
-
-  /** The Bars select: the loop AND every track's working clip become this long. */
-  function onBars(bars: number): void {
-    const length = Math.min(8, Math.max(1, Math.round(bars))) * 4;
-    const commands: SongCommand[] = [
-      { type: "setLoopRegion", region: { startBeat: 0, endBeat: length } },
-    ];
-    for (const t of history.song.tracks) {
-      const c = workingClip(t);
-      if (c) {
-        commands.push({
-          type: "updateClip",
-          clipId: c.id,
-          changes: { lengthBeats: length, loopBeats: length },
-        });
-      }
-    }
-    history.apply({ type: "batch", commands });
-  }
-
-  function stopAll(): void {
+  function endRecording(): void {
     if (isRecording) flushTake();
     isRecording = false;
+    recordRegion = null;
+    if (isReady) engine.setLoopOverride(null);
+  }
+
+  function onPlayPause(): void {
+    if (!isReady) return;
+    if (isPlaying || isCountingIn || engine.isPlaying) {
+      endRecording();
+      engine.pause();
+      isPlaying = false;
+      isCountingIn = false;
+      beat = engine.currentBeat();
+      prevBeat = null;
+    } else {
+      engine.play();
+    }
+  }
+
+  function onBackToStart(): void {
+    if (!isReady) {
+      beat = 0;
+      return;
+    }
+    endRecording();
     engine.stop();
     isPlaying = false;
     isCountingIn = false;
@@ -171,19 +179,124 @@
     prevBeat = null;
   }
 
-  function onPlayStop(): void {
-    if (!isReady) return;
-    if (isPlaying || isCountingIn || engine.isPlaying) stopAll();
-    else engine.play();
+  // ---- Clips ----
+
+  function selectedClip(): Clip | null {
+    if (!selectedClipId) return null;
+    return findClip(history.song, selectedClipId)?.clip ?? null;
+  }
+
+  function onSelectClip(trackId: string, clipId: string | null): void {
+    selectTrack(trackId);
+    selectedClipId = clipId;
+  }
+
+  /** New empty clip on the selected track, at the bar under the playhead. */
+  function onNewClip(): void {
+    const track = history.song.tracks.find((t) => t.id === selectedId);
+    if (!track || track.kind !== "notes") return;
+    const start = snapDownToBar(beat, history.song.beatsPerBar);
+    const clip = createNoteClip(
+      start,
+      newClipBars * history.song.beatsPerBar,
+      track.name,
+    );
+    history.apply({ type: "addClip", trackId: track.id, clip });
+    selectedClipId = clip.id;
+  }
+
+  // ---- Recording ----
+
+  /**
+   * Recording loops over one span of the timeline: the target clip's first
+   * pass (one source loop), or where a new clip will go.
+   */
+  function regionFor(target: RecordTarget): LoopRegion {
+    const song = history.song;
+    if (target.kind === "clip") {
+      const found = findClip(song, target.clipId);
+      if (found) {
+        const c = found.clip;
+        return {
+          startBeat: c.startBeat,
+          endBeat: c.startBeat + Math.min(c.lengthBeats, c.loopBeats),
+        };
+      }
+    }
+    const start = target.kind === "new" ? target.startBeat : 0;
+    return {
+      startBeat: start,
+      endBeat: start + newClipBars * song.beatsPerBar,
+    };
+  }
+
+  /** Aim recording at a target and loop the transport over its span. */
+  function aimRecording(target: RecordTarget): void {
+    recordTargetNow = target;
+    recordRegion = regionFor(target);
+    if (target.kind === "clip") selectedClipId = target.clipId;
+    engine.setLoopOverride(recordRegion);
+    prevBeat = null;
+  }
+
+  /** Position inside the recording span (0 at its start), in beats. */
+  function recordBeat(): number {
+    return engine.currentBeat() - (recordRegion?.startBeat ?? 0);
+  }
+
+  function recordLength(): number {
+    return recordRegion ? recordRegion.endBeat - recordRegion.startBeat : 16;
+  }
+
+  function commitNotes(notes: Note[]): void {
+    const target = recordTargetNow;
+    if (notes.length === 0 || !target) return;
+    const song = history.song;
+    if (target.kind === "clip") {
+      const found = findClip(song, target.clipId);
+      if (!found) return;
+      history.apply({
+        type: "addNotesToClip",
+        clipId: found.clip.id,
+        notes: toClipSource(notes, found.clip),
+      });
+      return;
+    }
+    const track = song.tracks.find((t) => t.id === target.trackId);
+    if (!track) return;
+    // The new clip is only made once something was actually played into it.
+    const created = createNoteClip(
+      target.startBeat,
+      recordLength(),
+      track.name,
+    );
+    history.apply({
+      type: "batch",
+      commands: [
+        { type: "addClip", trackId: track.id, clip: created },
+        { type: "addNotesToClip", clipId: created.id, notes },
+      ],
+    });
+    recordTargetNow = { kind: "clip", clipId: created.id };
+    selectedClipId = created.id;
+  }
+
+  function commitTake(): void {
+    commitNotes(recorder.collect(recordLength()));
+  }
+
+  function flushTake(): void {
+    commitNotes(recorder.flushAll(recordBeat(), recordLength()));
   }
 
   function onRecordToggle(): void {
     if (!isReady) return;
     if (isRecording) {
-      flushTake();
-      isRecording = false;
+      endRecording();
       return;
     }
+    const at = engine.isPlaying ? engine.currentBeat() : beat;
+    aimRecording(recordTarget(history.song, selectedId, selectedClipId, at));
     isRecording = true;
     if (!engine.isPlaying && !engine.isCountingIn) engine.playWithCountIn(4);
   }
@@ -194,10 +307,17 @@
     if (isRecording && engine.isPlaying) flushTake();
     engine.releaseAll();
     selectedId = id;
+    selectedClipId = null;
+    if (isRecording && recordRegion) {
+      // Keep recording over the same span, now on this track.
+      aimRecording(
+        recordTarget(history.song, id, null, recordRegion.startBeat),
+      );
+    }
   }
 
-  // Watches the transport: mirrors state into the UI and, when the loop
-  // wraps, commits the pass just played as ONE undo step.
+  // Watches the transport: mirrors state into the UI and, when a recording
+  // pass wraps, commits the pass just played as ONE undo step.
   let prevBeat: number | null = null;
   let frame = 0;
   function tick(): void {
@@ -207,15 +327,16 @@
     const counting = engine.isCountingIn;
     if (playing !== isPlaying) isPlaying = playing;
     if (counting !== isCountingIn) isCountingIn = counting;
+    const b = engine.currentBeat();
+    if (b !== beat) beat = b;
     if (!playing) {
+      // Playback ran to the end of the song and stopped by itself.
+      if (isRecording && !counting) endRecording();
       prevBeat = null;
-      if (beat !== 0) beat = 0;
       return;
     }
-    const b = engine.currentBeat() - loopSpan(history.song).start;
     if (prevBeat !== null && b < prevBeat && isRecording) commitTake();
     prevBeat = b;
-    beat = b;
   }
 
   onMount(() => {
@@ -239,13 +360,13 @@
     if (!isReady) return;
     engine.noteOn(selected.id, midi, velocity);
     if (isRecording && engine.isPlaying && !engine.isCountingIn) {
-      recorder.noteOn(midi, velocity, loopBeat());
+      recorder.noteOn(midi, velocity, recordBeat());
     }
   }
   function onNoteOff(midi: number): void {
     if (!isReady) return;
     engine.noteOff(selected.id, midi);
-    if (engine.isPlaying) recorder.noteOff(midi, loopBeat());
+    if (engine.isPlaying) recorder.noteOff(midi, recordBeat());
   }
 
   // ---- Song edits ----
@@ -265,13 +386,14 @@
   }
 
   function onRemove(id: string): void {
-    if (id === selectedId && isRecording && engine.isPlaying) flushTake();
+    if (id === selectedId) endRecording();
     engine.releaseAll();
     history.apply({ type: "removeTrack", trackId: id });
   }
 
   function onReplace(next: Song): void {
-    stopAll();
+    onBackToStart();
+    selectedClipId = null;
     history.replace(next);
   }
 
@@ -312,14 +434,16 @@
   <header>
     <h1>AJ's Music & SFX Tools</h1>
     <p class="help">
-      Pick a sound, press Record, play along with the loop. Add tracks to layer.
+      Pick a sound, press Record, play along with the loop. Select a clip to
+      record into it; New clip adds one at the playhead. Add tracks to layer.
     </p>
   </header>
 
   <TransportBar
     bpm={song.bpm}
-    bars={loopLength / song.beatsPerBar}
+    {newClipBars}
     {beat}
+    {loopOn}
     {isPlaying}
     {isCountingIn}
     {isRecording}
@@ -327,10 +451,13 @@
     {canRedo}
     {metronomeOn}
     {quantizeGrid}
-    {onPlayStop}
+    {onPlayPause}
+    {onBackToStart}
+    {onLoop}
+    {onNewClip}
     {onRecordToggle}
     onBpm={(bpm) => history.apply({ type: "setBpm", bpm })}
-    {onBars}
+    onNewClipBars={(bars) => (newClipBars = bars)}
     onMetronome={(on) => (metronomeOn = on)}
     onQuantize={(g) => {
       quantizeGrid = g;
@@ -340,19 +467,29 @@
     {onRedo}
   />
 
-  <TrackList
-    tracks={song.tracks}
-    selectedId={selected.id}
-    {loop}
-    beatsPerBar={song.beatsPerBar}
-    playhead={showPlayhead ? beat : null}
+  <Timeline
+    {song}
+    selectedTrackId={selected.id}
+    {selectedClipId}
+    playhead={beat}
+    follow={isPlaying && !isCountingIn}
+    {loopOn}
     maxTracks={MAX_TRACKS}
-    onSelect={selectTrack}
+    onSelectTrack={selectTrack}
+    {onSelectClip}
+    {onSeek}
+    {onLoopRegion}
     {onUpdate}
     onClear={(id) => {
       const track = song.tracks.find((t) => t.id === id);
-      const clip = track && workingClip(track);
-      if (clip) history.apply({ type: "clearClip", clipId: clip.id });
+      if (!track) return;
+      history.apply({
+        type: "batch",
+        commands: track.clips.map((c) => ({
+          type: "clearClip" as const,
+          clipId: c.id,
+        })),
+      });
     }}
     {onRemove}
     {onAdd}

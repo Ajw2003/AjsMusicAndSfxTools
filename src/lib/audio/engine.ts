@@ -6,6 +6,7 @@ import { encodeWav } from "./wav";
 import {
   expandClipNotes,
   songEndBeat,
+  type LoopRegion,
   type Note,
   type Song,
   type Track,
@@ -221,10 +222,13 @@ export class AudioEngine {
   #masterDb = 0;
   #voices = new Map<string, TrackVoice>();
   #parts: Tone.Part[] = [];
-  #loopBeats = 16;
-  /** Timeline beat where the loop (or the song) starts. */
-  #loopStart = 0;
-  #isLooping = true;
+  /** Loop region from the song, and an override used while recording. */
+  #region: LoopRegion | null = null;
+  #regionOverride: LoopRegion | null = null;
+  #loopEnabled = false;
+  /** Where the song ends (playback stops here when not looping). */
+  #endBeat = 16;
+  #endEventId: number | null = null;
   #metronomeOn = false;
   #metronomeId: number | null = null;
   #click: Tone.Synth | null = null;
@@ -319,31 +323,61 @@ export class AudioEngine {
     this.#parts = [];
   }
 
+  /** The loop region in effect, or null when playback runs linearly. */
+  get activeLoop(): LoopRegion | null {
+    if (this.#regionOverride) return this.#regionOverride;
+    return this.#loopEnabled ? this.#region : null;
+  }
+
+  /** Beat where linear playback stops by itself. */
+  get endBeat(): number {
+    return this.#endBeat;
+  }
+
+  #applyLoop(): void {
+    const transport = Tone.getTransport();
+    const loop = this.activeLoop;
+    transport.loop = loop !== null;
+    if (loop) {
+      transport.loopStart = `${Math.round(loop.startBeat * PPQ)}i`;
+      transport.loopEnd = `${Math.round(loop.endBeat * PPQ)}i`;
+      // A playhead outside the region would never reach its end.
+      const b = this.currentBeat();
+      if (b < loop.startBeat || b >= loop.endBeat) this.seek(loop.startBeat);
+    }
+  }
+
+  /** Turn looping over the song's loop region on or off. */
+  setLoopEnabled(isOn: boolean): void {
+    this.#loopEnabled = isOn;
+    this.#applyLoop();
+  }
+
+  /** Force a loop region regardless of the song (e.g. while recording); null ends it. */
+  setLoopOverride(region: LoopRegion | null): void {
+    this.#regionOverride = region ? { ...region } : null;
+    this.#applyLoop();
+  }
+
   /**
-   * Set tempo and loop, and (re)schedule every unmuted notes track. With a
-   * loop region the transport loops over it; without one the song plays from
-   * the start to its end and stops.
+   * Set tempo and loop region, and (re)schedule every unmuted notes track
+   * over the whole timeline. With looping on, the transport loops the
+   * region; otherwise it plays on and stops by itself at the song end.
    */
   setSong(song: Song): void {
     const transport = Tone.getTransport();
     transport.PPQ = PPQ;
     transport.bpm.value = song.bpm;
     this.#beatsPerBar = song.beatsPerBar;
-    const region = song.loopRegion;
-    const from = region ? region.startBeat : 0;
-    const to = region ? region.endBeat : songEndBeat(song);
-    this.#loopStart = from;
-    this.#loopBeats = to - from;
-    this.#isLooping = region !== null;
-    transport.loop = this.#isLooping;
-    transport.loopStart = `${Math.round(from * PPQ)}i`;
-    transport.loopEnd = `${Math.round(to * PPQ)}i`;
+    this.#region = song.loopRegion ? { ...song.loopRegion } : null;
+    this.#endBeat = songEndBeat(song);
+    this.#applyLoop();
 
     this.#clearSchedules();
     const secondsPerBeat = 60 / song.bpm;
     for (const track of song.tracks) {
       if (track.isMuted || track.kind !== "notes") continue;
-      const notes = scheduledNotes(track, from, to);
+      const notes = scheduledNotes(track, 0, Infinity);
       if (notes.length === 0) continue;
       const voice = this.#voiceFor(track.id);
       // Events are placed in ticks so a tempo change never moves them. The
@@ -366,7 +400,23 @@ export class AudioEngine {
       part.start(0);
       this.#parts.push(part);
     }
+    this.#scheduleEnd();
     this.#scheduleMetronome();
+  }
+
+  #scheduleEnd(): void {
+    const transport = Tone.getTransport();
+    if (this.#endEventId !== null) transport.clear(this.#endEventId);
+    this.#endEventId = transport.schedule(
+      (time) => {
+        if (this.activeLoop) return;
+        // Stop on the main thread at the moment the end is heard.
+        Tone.getDraw().schedule(() => {
+          if (!this.activeLoop && this.isPlaying) this.#stopAt(0);
+        }, time);
+      },
+      `${Math.round(this.#endBeat * PPQ)}i`,
+    );
   }
 
   #clickSynth(): Tone.Synth {
@@ -399,16 +449,25 @@ export class AudioEngine {
     this.#scheduleMetronome();
   }
 
+  /** Start from the playhead (from the start if it is at or past the song end). */
   play(): void {
+    this.#prepareStart();
     Tone.getTransport().start();
+  }
+
+  #prepareStart(): void {
+    if (!this.activeLoop && this.currentBeat() >= this.#endBeat - 1e-6) {
+      this.seek(0);
+    }
   }
 
   /**
    * Play `beats` metronome clicks (even if the metronome is off), then start
-   * the transport from the loop start at the exact end of the last click.
+   * the transport from the playhead at the exact end of the last click.
    * Both are placed on the audio clock, so the timing is sample-accurate.
    */
   playWithCountIn(beats = 4): void {
+    this.#prepareStart();
     const spb = 60 / Tone.getTransport().bpm.value;
     const click = this.#clickSynth();
     const t0 = Tone.now() + 0.05;
@@ -423,43 +482,64 @@ export class AudioEngine {
     Tone.getTransport().start(this.#countInEnd);
   }
 
-  /** True between playWithCountIn() and the moment the loop starts. */
+  /** True between playWithCountIn() and the moment playback starts. */
   get isCountingIn(): boolean {
     return this.#countInEnd > 0 && Tone.now() < this.#countInEnd;
   }
 
-  stop(): void {
+  /** Stop (cancelling any count-in) and leave the playhead at `beat`. */
+  #stopAt(beat: number): void {
     const transport = Tone.getTransport();
     this.#countInEnd = 0;
     transport.stop();
-    transport.position = 0;
+    transport.ticks = Math.round(Math.max(0, beat) * PPQ);
     this.releaseAll();
+  }
+
+  /** Stop and keep the playhead where it is. */
+  pause(): void {
+    this.#stopAt(this.currentBeat());
+  }
+
+  /** Stop and return the playhead to the start. */
+  stop(): void {
+    this.#stopAt(0);
+  }
+
+  /** Move the playhead (timeline beats); works while playing or stopped. */
+  seek(beat: number): void {
+    let b = Math.max(0, beat);
+    const loop = this.activeLoop;
+    if (loop && (b < loop.startBeat || b >= loop.endBeat)) b = loop.startBeat;
+    if (this.isPlaying) this.releaseAll();
+    Tone.getTransport().ticks = Math.round(b * PPQ);
   }
 
   get isPlaying(): boolean {
     return Tone.getTransport().state === "started";
   }
 
-  /** Position on the timeline, in beats (float). */
+  /** Playhead position on the timeline, in beats (float). */
   currentBeat(): number {
-    const beats = Tone.getTransport().ticks / PPQ;
-    if (!this.#isLooping) return beats;
-    return this.#loopStart + ((beats - this.#loopStart) % this.#loopBeats);
+    return Tone.getTransport().ticks / PPQ;
   }
 
   /**
-   * Render `loops` passes of the loop region (or the whole song when there
-   * is none) plus a 1 s tail to WAV bytes.
+   * Render the whole song (0 to its end) or `passes` passes of the loop
+   * region (the whole song when there is none), plus a 1 s tail, to WAV bytes.
    * Tone.Offline runs in its OWN AudioContext, so the live voices (which
    * belong to the real context) cannot be used: fresh voices and a fresh
    * master chain are built inside the offline callback. Notes are placed at
    * absolute times, so the offline transport is not needed.
    */
-  async renderWav(song: Song, loops: number): Promise<Uint8Array> {
-    const region = song.loopRegion;
+  async renderWav(
+    song: Song,
+    options: { range: "song" | "loop"; passes?: number },
+  ): Promise<Uint8Array> {
+    const region = options.range === "loop" ? song.loopRegion : null;
     const from = region ? region.startBeat : 0;
     const to = region ? region.endBeat : songEndBeat(song);
-    const passes = region ? loops : 1;
+    const passes = region ? Math.max(1, Math.round(options.passes ?? 1)) : 1;
     const beats = to - from;
     const secondsPerBeat = 60 / song.bpm;
     const duration = beats * secondsPerBeat * passes + TAIL_SECONDS;
