@@ -1,8 +1,29 @@
 # Song timeline
 
-**Built?** Loop mode built, 2026-10-03: model and undo in `src/lib/song/song.ts`, recording in
-`src/lib/song/recorder.ts:14`. Each loop pass is committed as one `addNotes` command, so one undo removes
-one pass. Notes crossing the loop end are clipped (`wrapNoteToLoop`). Piano roll and step sequencer not built.
+**Built?** Song format v2 with clips, 2026-10-03 (#71): `src/lib/song/song.ts` holds tracks → clips; a clip
+repeats its source loop (`loopBeats`) to fill `lengthBeats`, trimmed by `offsetBeats`; `expandClipNotes`
+turns a clip into absolute timeline notes for the engine. Old (v1) songs and autosaves upgrade on load in
+`src/lib/song/storage.ts` (each track's notes become one clip at bar 1; loop region = the old loop).
+A `batch` command groups multi-step edits into one undo.
+
+**Timeline view and recording into clips, 2026-10-03 (#72, #73, #76):** `src/components/Timeline.svelte` shows
+track lanes (`TrackHeader.svelte`, `ClipBlock.svelte`) under a bar ruler; geometry, zoom and ruler ticks are
+pure helpers in `src/lib/song/timeline-view.ts`. Record picks its target with `recordTarget`
+(`timeline-view.ts:108`): the selected clip, else the selected track's clip under the playhead, else a new clip
+at that bar (made only once a note is played, so an empty take leaves nothing behind). While recording the
+transport loops the target's first pass (`regionFor`/`aimRecording`, `src/App.svelte:214`); notes are
+recorded relative to that span and moved into the clip's source loop by `toClipSource` (`timeline-view.ts:138`),
+which accounts for trim. One pass is still one undo step.
+
+**Editing clips, 2026-10-03 (#74, #75):** dragging is worked out by `dragClip` (`timeline-view.ts:237`): move, stretch
+(right edge; the loop is kept so content repeats) or trim (left edge; the trim offset shifts so the notes that
+stay keep their place). The edge being moved snaps to the absolute grid (Snap: Off/Beat/Bar), not by the drag
+distance. The timeline previews the drag and commits it once on release through `onClipEdit` (`src/App.svelte:217`),
+a `moveClip` + `updateClip` batch, so one drag is one undo step. The dragged clip stays mounted in its own lane
+during a cross-track drag (it holds the pointer capture), and a dashed ghost shows the target. Arrow keys on a
+focused clip do the same edits. `ClipInspector.svelte` has typed fields for every clip setting. Split, duplicate,
+copy, paste and delete use the existing commands. Copy/paste uses an in-app clipboard, not the system one, and
+pastes on the selected track at the playhead. Shortcuts are Ctrl+E/D/C/V and Delete, matched by physical key.
 
 ## What it owns
 

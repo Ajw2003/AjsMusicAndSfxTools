@@ -5,6 +5,39 @@ Append-only. Newest at the top. An old entry is never rewritten; when one is rep
 
 ---
 
+## 2026-10-03 — Add Playwright for browser checks
+
+**Context.** The arranger's timeline, dragging and playback can only be properly checked in a real browser.
+Those checks were scripts in a reclaimed session folder, then a hand-run `e2e/timeline.cjs` using a
+Playwright install outside the project. The owner approved adding it.
+
+**Decision.** `playwright` 1.63.0 (open source, Apache-2.0) is a pinned dev dependency. `npm run test:e2e`
+builds the app, serves the build with Vite's preview server and runs `e2e/timeline.cjs` in Chromium; CI
+installs Chromium and runs it on every push.
+
+**Why.** It drives real pointer, touch and keyboard input and reads the page as a person would. Rejected:
+`@playwright/test` (a whole test runner, not needed for one script yet) and hand-checking (not repeatable).
+
+**Status.** Standing.
+
+## 2026-10-03 — Add an arranger timeline (M9) and rebalance the roadmap
+
+**Context.** After trying the chiptune prototype the owner asked for video-editor-style timeline
+controls to drag and layer audio and chord progressions. Their answers: loops become clips with easily
+editable length and attributes; note clips, imported audio and microphone recording; a chord builder whose
+chords are saved as one-key pads; unlimited song length. Plan: `docs/plans/arranger-timeline.md`.
+
+**Decision.** New milestone M9: Arranger (15%). Song format v2 stores clips on tracks; v1 songs upgrade
+automatically. To keep the total at 100%, M1, M5 and M7 each drop from 15% to 10%, because the loop
+recorder (M5) and the read-only lane (M7) are now partly absorbed into the arranger. Audio is stored in
+IndexedDB and embedded in project files as base64, so no new dependency and one file per song.
+
+**Why.** Rejected: replacing the loop recorder (the owner wants loops kept as the way to make clips),
+and a separate arrange mode (more screens, against calm-by-default). Base64 in JSON was chosen over a zip
+format to avoid a dependency; it makes files about a third larger, which is fine at this scale.
+
+**Status.** Standing.
+
 ## 2026-10-03 — First prototype is a chiptune loop-pedal song builder
 
 **Context.** The owner asked for "a usable prototype worth showing where I can actually make a song with

@@ -19,3 +19,6 @@ jobs:
       - run: npm run check
       - run: npm test
       - run: npm run build
+      # Browser checks (e2e/): the Chromium build matching the pinned Playwright.
+      - run: npx playwright install --with-deps chromium
+      - run: npm run test:e2e

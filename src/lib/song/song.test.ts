@@ -2,13 +2,18 @@ import { describe, expect, it } from "vitest";
 import {
   SongHistory,
   applyCommand,
+  createNoteClip,
   createSong,
   createTrack,
-  loopBeats,
+  expandClipNotes,
+  findClip,
   quantizeBeat,
+  songEndBeat,
   wrapNoteToLoop,
+  type Clip,
   type Note,
   type Song,
+  type SongCommand,
 } from "./song";
 
 const note = (startBeat: number, durationBeats = 1, id = "n"): Note => ({
@@ -19,24 +24,58 @@ const note = (startBeat: number, durationBeats = 1, id = "n"): Note => ({
   velocity: 0.8,
 });
 
+const clipOf = (s: Song, i = 0) => s.tracks[0].clips[i];
+const notesOf = (s: Song, i = 0) => {
+  const c = clipOf(s, i).content;
+  return c.kind === "notes" ? c.notes : [];
+};
+
 describe("createSong / createTrack", () => {
   it("makes the default song", () => {
     const s = createSong();
-    expect(s).toMatchObject({ version: 1, bpm: 110, bars: 4, beatsPerBar: 4 });
+    expect(s).toMatchObject({
+      version: 2,
+      bpm: 110,
+      beatsPerBar: 4,
+      loopRegion: { startBeat: 0, endBeat: 16 },
+      chordPads: [],
+    });
     expect(s.tracks).toHaveLength(1);
     expect(s.tracks[0]).toMatchObject({
       name: "Square lead",
+      kind: "notes",
       sound: "square",
       volumeDb: 0,
       isMuted: false,
-      notes: [],
     });
-    expect(loopBeats(s)).toBe(16);
+    expect(s.tracks[0].clips).toHaveLength(1);
+    expect(s.tracks[0].clips[0]).toMatchObject({
+      startBeat: 0,
+      lengthBeats: 16,
+      loopBeats: 16,
+      offsetBeats: 0,
+      content: { kind: "notes", notes: [] },
+    });
+    expect(songEndBeat(s)).toBe(16);
   });
   it("names tracks after the sound unless told otherwise", () => {
     expect(createTrack("noise").name).toBe("Noise drums");
     expect(createTrack("noise", "Hats").name).toBe("Hats");
     expect(createTrack("noise").id).not.toBe(createTrack("noise").id);
+    expect(createTrack("noise").kind).toBe("notes");
+    expect(createTrack("noise", "x", "audio").kind).toBe("audio");
+  });
+  it("finds clips and measures the song", () => {
+    const s = createSong();
+    const clip = s.tracks[0].clips[0];
+    expect(findClip(s, clip.id)?.track.id).toBe(s.tracks[0].id);
+    expect(findClip(s, "nope")).toBeNull();
+    const longer = applyCommand(s, {
+      type: "updateClip",
+      clipId: clip.id,
+      changes: { startBeat: 20 },
+    });
+    expect(songEndBeat(longer)).toBe(36);
   });
 });
 
@@ -72,11 +111,77 @@ describe("wrapNoteToLoop", () => {
   });
 });
 
+describe("expandClipNotes", () => {
+  const clip = (over: Partial<Clip>, notes: Note[]): Clip => ({
+    ...createNoteClip(0, 4),
+    ...over,
+    content: { kind: "notes", notes },
+  });
+  it("repeats the source to fill the clip", () => {
+    const out = expandClipNotes(clip({ lengthBeats: 10 }, [note(1, 1, "a")]));
+    expect(out.map((n) => n.startBeat)).toEqual([1, 5, 9]);
+    expect(out.map((n) => n.id)).toEqual(["a:0", "a:1", "a:2"]);
+  });
+  it("places notes relative to the clip start", () => {
+    const out = expandClipNotes(
+      clip({ startBeat: 8, lengthBeats: 4 }, [note(1)]),
+    );
+    expect(out.map((n) => n.startBeat)).toEqual([9]);
+  });
+  it("trims with the offset", () => {
+    const out = expandClipNotes(
+      clip({ offsetBeats: 1, lengthBeats: 4 }, [
+        note(0, 1, "a"),
+        note(1, 1, "b"),
+        note(3, 1, "c"),
+      ]),
+    );
+    // Source runs 1,2,3,0': b at 0, c at 2, a at 3.
+    expect(out.map((n) => [n.id, n.startBeat])).toEqual([
+      ["b:0", 0],
+      ["c:0", 2],
+      ["a:1", 3],
+    ]);
+  });
+  it("cuts durations at the clip end", () => {
+    const out = expandClipNotes(
+      clip({ lengthBeats: 6 }, [note(3, 1, "a"), note(0, 4, "b")]),
+    );
+    expect(out.find((n) => n.id === "b:1")?.durationBeats).toBe(2);
+    expect(out.find((n) => n.id === "a:1")).toBeUndefined();
+    const tiny = expandClipNotes(
+      clip({ lengthBeats: 4.01 }, [note(0, 4, "t")]),
+    );
+    expect(tiny.find((n) => n.id === "t:1")?.durationBeats).toBe(0.05);
+  });
+  it("drops notes outside the source loop", () => {
+    expect(expandClipNotes(clip({}, [note(4), note(-1)]))).toEqual([]);
+  });
+  it("transposes and clamps pitch", () => {
+    const hi: Note = { ...note(0), pitch: 125 };
+    const lo: Note = { ...note(1, 1, "l"), pitch: 2 };
+    expect(expandClipNotes(clip({ transpose: 12 }, [hi]))[0].pitch).toBe(127);
+    expect(expandClipNotes(clip({ transpose: -12 }, [lo]))[0].pitch).toBe(0);
+    expect(expandClipNotes(clip({ transpose: 2 }, [note(0)]))[0].pitch).toBe(
+      62,
+    );
+  });
+  it("does not change velocity and ignores audio clips", () => {
+    expect(expandClipNotes(clip({ gainDb: -12 }, [note(0)]))[0].velocity).toBe(
+      0.8,
+    );
+    const audio: Clip = {
+      ...createNoteClip(0, 4),
+      content: { kind: "audio", assetId: "a", sourceOffsetSeconds: 0 },
+    };
+    expect(expandClipNotes(audio)).toEqual([]);
+  });
+});
+
 describe("applyCommand", () => {
-  const base = (): Song => {
-    const s = createSong();
-    return s;
-  };
+  const base = (): Song => createSong();
+  const id0 = (s: Song) => s.tracks[0].id;
+  const cid = (s: Song) => s.tracks[0].clips[0].id;
   it("adds and removes tracks", () => {
     const s = base();
     const t = createTrack("pulse");
@@ -88,10 +193,9 @@ describe("applyCommand", () => {
   });
   it("updates a track", () => {
     const s = base();
-    const id = s.tracks[0].id;
     const out = applyCommand(s, {
       type: "updateTrack",
-      trackId: id,
+      trackId: id0(s),
       changes: { name: "Lead", isMuted: true, volumeDb: -6, sound: "pulse" },
     });
     expect(out.tracks[0]).toMatchObject({
@@ -102,19 +206,198 @@ describe("applyCommand", () => {
     });
     expect(s.tracks[0].name).toBe("Square lead");
   });
-  it("adds notes and clears a track", () => {
+  it("adds a clip", () => {
     const s = base();
-    const id = s.tracks[0].id;
+    const c = createNoteClip(16, 8);
+    const out = applyCommand(s, { type: "addClip", trackId: id0(s), clip: c });
+    expect(out.tracks[0].clips.map((x) => x.id)).toEqual([cid(s), c.id]);
+    expect(s.tracks[0].clips).toHaveLength(1);
+  });
+  it("updates a clip and validates fields", () => {
+    const s = base();
+    const out = applyCommand(s, {
+      type: "updateClip",
+      clipId: cid(s),
+      changes: {
+        name: "Verse",
+        startBeat: -3,
+        lengthBeats: 0,
+        loopBeats: 0.1,
+        offsetBeats: 5,
+        transpose: 99,
+        gainDb: -99,
+        colour: "#ff0000",
+      },
+    });
+    expect(clipOf(out)).toMatchObject({
+      name: "Verse",
+      startBeat: 0,
+      lengthBeats: 0.25,
+      loopBeats: 0.25,
+      offsetBeats: 0,
+      transpose: 24,
+      gainDb: -30,
+      colour: "#ff0000",
+    });
+    const hi = applyCommand(s, {
+      type: "updateClip",
+      clipId: cid(s),
+      changes: { gainDb: 50, transpose: -50, offsetBeats: -1 },
+    });
+    expect(clipOf(hi)).toMatchObject({
+      gainDb: 6,
+      transpose: -24,
+      offsetBeats: 15,
+    });
+    expect(clipOf(s).name).toBe("Clip");
+  });
+  it("drops notes beyond a shortened source loop, restored by undo", () => {
+    const h = new SongHistory(base());
+    const c = h.song.tracks[0].clips[0].id;
+    h.apply({
+      type: "addNotesToClip",
+      clipId: c,
+      notes: [note(1, 1, "in"), note(4, 1, "edge"), note(10, 1, "out")],
+    });
+    h.apply({ type: "updateClip", clipId: c, changes: { loopBeats: 4 } });
+    expect(notesOf(h.song).map((n) => n.id)).toEqual(["in"]);
+    h.undo();
+    expect(notesOf(h.song)).toHaveLength(3);
+  });
+  it("moves a clip between tracks of the same kind", () => {
+    const t2 = createTrack("pulse");
+    const s = applyCommand(base(), { type: "addTrack", track: t2 });
+    const out = applyCommand(s, {
+      type: "moveClip",
+      clipId: cid(s),
+      toTrackId: t2.id,
+      startBeat: 8,
+    });
+    expect(out.tracks[0].clips).toHaveLength(0);
+    expect(out.tracks[1].clips[0]).toMatchObject({ id: cid(s), startBeat: 8 });
+    // Same track: just changes the start, never below 0.
+    const same = applyCommand(s, {
+      type: "moveClip",
+      clipId: cid(s),
+      toTrackId: id0(s),
+      startBeat: -5,
+    });
+    expect(same.tracks[0].clips).toHaveLength(1);
+    expect(clipOf(same).startBeat).toBe(0);
+  });
+  it("refuses to move a clip to a track of another kind", () => {
+    const t2 = createTrack("pulse", "Audio", "audio");
+    const s = applyCommand(base(), { type: "addTrack", track: t2 });
+    expect(() =>
+      applyCommand(s, {
+        type: "moveClip",
+        clipId: cid(s),
+        toTrackId: t2.id,
+        startBeat: 0,
+      }),
+    ).toThrow("same kind");
+  });
+  it("removes a clip", () => {
+    const s = base();
+    const out = applyCommand(s, { type: "removeClip", clipId: cid(s) });
+    expect(out.tracks[0].clips).toHaveLength(0);
+    expect(s.tracks[0].clips).toHaveLength(1);
+  });
+  it("splits a clip with the right offset maths", () => {
+    const s = base();
+    const clipId = cid(s);
+    const edited = applyCommand(
+      applyCommand(s, {
+        type: "addNotesToClip",
+        clipId,
+        notes: [note(2, 1, "a")],
+      }),
+      {
+        type: "updateClip",
+        clipId,
+        changes: { startBeat: 4, lengthBeats: 32, offsetBeats: 6 },
+      },
+    );
+    const out = applyCommand(edited, { type: "splitClip", clipId, atBeat: 14 });
+    const [left, right] = out.tracks[0].clips;
+    expect(left).toMatchObject({ id: clipId, startBeat: 4, lengthBeats: 10 });
+    expect(right.id).not.toBe(clipId);
+    expect(right).toMatchObject({
+      startBeat: 14,
+      lengthBeats: 22,
+      loopBeats: 16,
+      offsetBeats: (6 + 10) % 16,
+    });
+    expect(right.content).toEqual(left.content);
+    expect(right.content).not.toBe(left.content);
+    expect(left.offsetBeats).toBe(6);
+    // The two halves sound exactly like the unsplit clip.
+    const whole = expandClipNotes(clipOf(edited)).map((n) => n.startBeat);
+    const halves = out.tracks[0].clips
+      .flatMap((c) => expandClipNotes(c))
+      .map((n) => n.startBeat);
+    expect(halves).toEqual(whole);
+  });
+  it("rejects a split outside the clip", () => {
+    const s = base();
+    for (const atBeat of [0, 16, -1, 20]) {
+      expect(() =>
+        applyCommand(s, { type: "splitClip", clipId: cid(s), atBeat }),
+      ).toThrow("inside");
+    }
+  });
+  it("duplicates a clip right after the original", () => {
+    const s = base();
+    const withNote = applyCommand(s, {
+      type: "addNotesToClip",
+      clipId: cid(s),
+      notes: [note(1, 1, "a")],
+    });
+    const out = applyCommand(withNote, {
+      type: "duplicateClip",
+      clipId: cid(s),
+      newClipId: "copy",
+    });
+    const [orig, copy] = out.tracks[0].clips;
+    expect(copy).toMatchObject({
+      id: "copy",
+      startBeat: orig.startBeat + orig.lengthBeats,
+      lengthBeats: 16,
+    });
+    expect(copy.content).toEqual(orig.content);
+    expect(copy.content).not.toBe(orig.content);
+  });
+  it("adds notes to a clip and clears it", () => {
+    const s = base();
     const a = applyCommand(s, {
-      type: "addNotes",
-      trackId: id,
+      type: "addNotesToClip",
+      clipId: cid(s),
       notes: [note(0, 1, "a"), note(1, 1, "b")],
     });
-    expect(a.tracks[0].notes).toHaveLength(2);
-    expect(s.tracks[0].notes).toHaveLength(0);
-    const c = applyCommand(a, { type: "clearTrack", trackId: id });
-    expect(c.tracks[0].notes).toHaveLength(0);
-    expect(a.tracks[0].notes).toHaveLength(2);
+    expect(notesOf(a)).toHaveLength(2);
+    expect(notesOf(s)).toHaveLength(0);
+    const c = applyCommand(a, { type: "clearClip", clipId: cid(s) });
+    expect(notesOf(c)).toHaveLength(0);
+    expect(notesOf(a)).toHaveLength(2);
+  });
+  it("refuses notes on an audio clip", () => {
+    const s = base();
+    const audio: Clip = {
+      ...createNoteClip(0, 4),
+      content: { kind: "audio", assetId: "a", sourceOffsetSeconds: 0 },
+    };
+    const out = applyCommand(s, {
+      type: "addClip",
+      trackId: id0(s),
+      clip: audio,
+    });
+    expect(() =>
+      applyCommand(out, {
+        type: "addNotesToClip",
+        clipId: audio.id,
+        notes: [],
+      }),
+    ).toThrow("not a note clip");
   });
   it("clamps bpm", () => {
     const s = base();
@@ -122,35 +405,64 @@ describe("applyCommand", () => {
     expect(applyCommand(s, { type: "setBpm", bpm: 999 }).bpm).toBe(240);
     expect(applyCommand(s, { type: "setBpm", bpm: 128 }).bpm).toBe(128);
   });
-  it("clamps bars and drops notes beyond the new loop", () => {
+  it("sets and clears the loop region, validating it", () => {
     const s = base();
-    const id = s.tracks[0].id;
-    const withNotes = applyCommand(s, {
-      type: "addNotes",
-      trackId: id,
-      notes: [note(1, 1, "in"), note(4, 1, "edge"), note(10, 1, "out")],
+    const out = applyCommand(s, {
+      type: "setLoopRegion",
+      region: { startBeat: 4, endBeat: 8 },
     });
-    const shorter = applyCommand(withNotes, { type: "setBars", bars: 1 });
-    expect(shorter.bars).toBe(1);
-    expect(shorter.tracks[0].notes.map((n) => n.id)).toEqual(["in"]);
-    expect(withNotes.tracks[0].notes).toHaveLength(3);
-    expect(applyCommand(s, { type: "setBars", bars: 0 }).bars).toBe(1);
-    expect(applyCommand(s, { type: "setBars", bars: 99 }).bars).toBe(8);
+    expect(out.loopRegion).toEqual({ startBeat: 4, endBeat: 8 });
+    expect(
+      applyCommand(out, { type: "setLoopRegion", region: null }).loopRegion,
+    ).toBeNull();
+    for (const region of [
+      { startBeat: 4, endBeat: 4 },
+      { startBeat: 8, endBeat: 4 },
+      { startBeat: -1, endBeat: 4 },
+    ]) {
+      expect(() => applyCommand(s, { type: "setLoopRegion", region })).toThrow(
+        "loop",
+      );
+    }
   });
-  it("throws naming an unknown track id", () => {
+  it("sets chord pads", () => {
+    const pads = [{ id: "p", name: "C", pitches: [60, 64, 67], keyCode: null }];
+    const out = applyCommand(base(), { type: "setChordPads", pads });
+    expect(out.chordPads).toEqual(pads);
+  });
+  it("applies a batch as one undo step", () => {
+    const h = new SongHistory(base());
+    h.apply({
+      type: "batch",
+      commands: [
+        { type: "setBpm", bpm: 90 },
+        { type: "setLoopRegion", region: { startBeat: 0, endBeat: 4 } },
+      ],
+    });
+    expect(h.song.bpm).toBe(90);
+    h.undo();
+    expect(h.song.bpm).toBe(110);
+    expect(h.song.loopRegion?.endBeat).toBe(16);
+    expect(h.canUndo).toBe(false);
+  });
+  it("throws naming an unknown id", () => {
     const s = base();
-    expect(() =>
-      applyCommand(s, { type: "removeTrack", trackId: "ghost" }),
-    ).toThrow("ghost");
-    expect(() =>
-      applyCommand(s, { type: "clearTrack", trackId: "ghost" }),
-    ).toThrow("ghost");
-    expect(() =>
-      applyCommand(s, { type: "addNotes", trackId: "ghost", notes: [] }),
-    ).toThrow("ghost");
-    expect(() =>
-      applyCommand(s, { type: "updateTrack", trackId: "ghost", changes: {} }),
-    ).toThrow("ghost");
+    const bad: SongCommand[] = [
+      { type: "removeTrack", trackId: "ghost" },
+      { type: "updateTrack", trackId: "ghost", changes: {} },
+      { type: "addClip", trackId: "ghost", clip: createNoteClip(0, 4) },
+      { type: "updateClip", clipId: "ghost", changes: {} },
+      { type: "moveClip", clipId: "ghost", toTrackId: id0(s), startBeat: 0 },
+      { type: "moveClip", clipId: cid(s), toTrackId: "ghost", startBeat: 0 },
+      { type: "removeClip", clipId: "ghost" },
+      { type: "splitClip", clipId: "ghost", atBeat: 1 },
+      { type: "duplicateClip", clipId: "ghost", newClipId: "x" },
+      { type: "addNotesToClip", clipId: "ghost", notes: [] },
+      { type: "clearClip", clipId: "ghost" },
+    ];
+    for (const cmd of bad) {
+      expect(() => applyCommand(s, cmd)).toThrow("ghost");
+    }
   });
 });
 
@@ -183,18 +495,9 @@ describe("SongHistory", () => {
     expect(h.canRedo).toBe(false);
     expect(h.redo()).toBe(false);
   });
-  it("restores notes dropped by setBars on undo", () => {
-    const s = createSong();
-    const h = new SongHistory(s);
-    h.apply({ type: "addNotes", trackId: s.tracks[0].id, notes: [note(10)] });
-    h.apply({ type: "setBars", bars: 1 });
-    expect(h.song.tracks[0].notes).toHaveLength(0);
-    h.undo();
-    expect(h.song.tracks[0].notes).toHaveLength(1);
-  });
   it("does not record a failed command", () => {
     const h = new SongHistory(createSong());
-    expect(() => h.apply({ type: "clearTrack", trackId: "ghost" })).toThrow(
+    expect(() => h.apply({ type: "clearClip", clipId: "ghost" })).toThrow(
       "ghost",
     );
     expect(h.canUndo).toBe(false);

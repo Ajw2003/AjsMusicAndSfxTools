@@ -11,14 +11,15 @@ projects and download a WAV. Checked by a headless-browser run (21/21 checks, de
 | Milestone | Share | Status | Parent issue |
 |---|---|---|---|
 | M0: Foundation | 5% | Built; CI green; owner's local run not yet checked | #1 |
-| M1: Playable keyboard | 15% | Mostly built (latency #15 not measured; owner test pending) | #6 |
+| M1: Playable keyboard | 10% | Mostly built (latency #15 not measured; owner test pending) | #6 |
 | M2: Instruments | 15% | Chiptune only (#25); no samples | #16 |
 | M3: Customising sounds and keys | 10% | Not started | #28 |
 | M4: Themes and accessibility | 10% | Not started | #34 |
-| M5: Record and loop | 15% | Mostly built (loop mode, undo, autosave, metronome, quantize) | #42 |
+| M5: Record and loop | 10% | Mostly built (loop mode, undo, autosave, metronome, quantize) | #42 |
 | M6: Save and export | 10% | Project files + WAV built; MP3/OGG, MIDI, options not | #51 |
-| M7: Piano roll and step sequencer | 15% | Read-only loop view only | #57 |
+| M7: Piano roll and step sequencer | 10% | Read-only loop view only | #57 |
 | M8: Installable, offline and polished | 5% | Not started | #62 |
+| M9: Arranger | 15% | Phase A (#71–#76) built on branch, not merged; phases B–D not started | #70 |
 
 ## M0: Foundation
 
@@ -41,10 +42,36 @@ Plan: `docs/plans/chiptune-prototype.md`. Built in three chunks (pure logic, eng
   Ctrl+Shift+Z; reload restores both tracks from autosave; WAV download 529,244 bytes with 121,734 non-zero
   samples; drum keys labelled Kick/Snare/Hat; no horizontal scroll at 1280/390/360 px; one octave on phone;
   no console or page errors. 66 unit tests pass.
-- **Not checked:** anything heard by a person (headless has no speakers); real phone touch; Open project and
-  New song in a browser; key-to-sound latency.
+- **Also checked after merge (same build as live, `index-VPZK03c6.js`):** Open project with a valid file
+  restores 2 tracks and BPM 100; an invalid file shows an error and keeps the current song; New song clears it.
+- **Not checked:** anything heard by a person (headless has no speakers); real phone touch (only emulated);
+  key-to-sound latency (#15, needs the owner's PC).
 - **Known rough edges:** Stop during the count-in can still play the remaining clicks (they are pre-scheduled);
   phone white keys are 41–45 px at 360 px wide; drum tracks show 2 octaves on phone so all three drums fit.
+
+## M9: Arranger (#70)
+
+Plan: `docs/plans/arranger-timeline.md`. Handoff detail: `docs/5-today/Today.md`.
+
+- **Built, on branch only:** song format v2 (#71), checked: 95 unit tests, browser regression 23/23.
+- **Built, on branch only (2026-10-03):** timeline view, playback from the playhead with a loop toggle, and
+  recording into clips (#72, #73, #76). Checked: types, lint, format, 102 unit tests, production build, and
+  `e2e/timeline.cjs` in headless Chromium, 22/22, run twice. It records a pass into a clip, measures that a
+  stretched clip sounds 4 times 1.000 s apart, checks the loop region repeats bar 2 only, gets a 17.00 s WAV for a
+  16 s song, and checks a 64-bar song at 390 px and 1280 px wide with no page-level sideways scroll. Screenshots
+  were looked at in light and dark mode.
+- **Built, on branch only (2026-10-03):** drag clips to move/stretch/trim with snap (#74), clip inspector with
+  split/duplicate/copy/paste/delete and shortcuts (#75). `e2e/timeline.cjs` now has 49 checks, including every
+  drag type snapping and undoing in one step, and a keyboard-only run through every clip edit. Passed 3 times in a
+  row after a fix for a one-frame playhead flicker at the loop wrap, which run 2 of an earlier batch caught.
+  110 unit tests.
+- **Touch (emulated, 2026-10-03):** real touch events on a 390 px phone page move, stretch and re-track a clip, and
+  a swipe on an empty lane still scrolls the timeline. 53/53 browser checks, run twice.
+- **Not checked:** heard by a person (the test browser has no speakers); a physical phone (only emulated touch,
+  as there is no device here); picking a colour with the keyboard alone (the browser's own colour picker
+  can't be driven from the test). Clips cover the lane they sit in, so on a phone a long song is scrolled by
+  swiping the ruler or empty lane space, not by swiping a clip.
+- **Not started:** #77–#82.
 
 ## The one thing that is not what it looks like
 

@@ -1,37 +1,44 @@
-# Today (tier 5): 2026-10-03
+# Today (tier 5): 2026-10-03, handoff (phase A built)
 
-**Today was a planning and documentation day.** It maps to M0 (Foundation).
+**Read this first, then [ProjectState](../3-state/ProjectState.md) and [the arranger plan](../plans/arranger-timeline.md).**
 
-## Done
+## Where things are
 
-- Agreed the big choices with the owner (recorded in [Decisions](../6-decisions/Decisions.md)):
-  web app with TypeScript + Vite + Svelte + Tone.js; hybrid sounds; all four export types; record/loop
-  + piano roll + step sequencer; theme picker; the full accessibility set; both key layouts; MIT;
-  Milestones with parent and sub-issues.
-- Wrote all six doc tiers, `CLAUDE.md`, `LICENSE`, `CREDITS.md`.
-- Created GitHub Milestones M0–M8, labels, 9 parent issues and 57 sub-issues (#1–#66).
-- Built the empty app shell (#3), code checks (#4) and CI (#5). CI is green on GitHub.
-- Fixed: lint, format and tests were also scanning agent worktree copies under `.claude/`; now excluded.
-- Published the current build as a private claude.ai page for phone testing: https://claude.ai/artifact/RcupkZeGwx6UZqqtpD8xxv (built with `npx vite build --base ./`; republish after each milestone).
+- **Live site** (https://ajw2003.github.io/AjsMusicAndSfxTools/) = `main` = the chiptune loop prototype
+  (PR #69). The owner tested it and said it "works beautifully". Issues #1–#5, #7–#14, #25, #43–#50, #52, #53,
+  #68 were closed at the owner's request.
+- **Branch `ccr-140da2ff-xt2m7i`** is ahead of `main` and NOT merged:
+  - Arranger plan, roadmap M9, decisions entry, issues #70 (parent) and #71–#82.
+  - **#71 done (not merged):** song format v2 with clips + automatic upgrade of old songs/autosaves
+    (commit e796095). Re-checked by the parent: lint/format/types clean, 95 unit tests, browser test
+    `song-v2.cjs` 23/23 and `files-v2.cjs` all pass. The app still looks and behaves like the prototype.
+- **#72/#73/#76 done (not merged), 2026-10-03:** the WIP patch was applied, finished and the patch file deleted.
+  Timeline view, playback from the playhead, Loop toggle, New clip, record into clips, whole-song export.
+  Checked: types/lint/format clean, 102 unit tests, build, browser check `e2e/timeline.cjs` 22/22 twice.
+  Run it with `npm run test:e2e` (Playwright is now a dev dependency and the check runs in CI).
+- **#74/#75 done (not merged), 2026-10-03:** drag clips with snap; clip inspector, split, duplicate, copy/paste,
+  delete, keyboard shortcuts. **Phase A (#71–#76) is complete on the branch.** `e2e/timeline.cjs`: 53/53 (incl. emulated touch).
 
-- GitHub Pages is live at https://ajw2003.github.io/AjsMusicAndSfxTools/ (PR #67 merged; deploy re-run after Pages was switched on).
+## Next session, in order
 
-- Built the chiptune song prototype (#68) in three builder chunks, each re-checked on the branch: 66 unit
-  tests, and a headless-browser song test 21/21.
+1. Phase A pull request: opened with the owner's go-ahead. Get CI green, then merge **only if the owner says
+   so**: they have not yet answered whether the agent may merge each phase itself.
+2. Then phase B (#77 chord builder, #78 one-key chord pads), C (#79–#81 audio files), D (#82 microphone).
 
-## Deliberately not done
+## Open questions for the owner
 
-- Only chiptune sounds; sampled instruments wait on #17 (licences).
-- No sample packs chosen. Licences must be read first (#17).
+- May the agent merge each arranger phase itself once CI and its own browser checks pass?
+- Still open from earlier: themes beyond the four planned; default note names (C D E vs Do Re Mi).
 
-## Surfaced, not today's job
+## Not done / known gaps
 
-- Whether Node.js is installed on the owner's Windows PC.
-- Which browser the owner mainly uses (matters for the latency measurement, #15).
+- Nobody has measured key-to-sound latency (#15); needs the owner's PC.
+- Sample-pack licences (#17) not researched; only chiptune sounds exist.
+- Known rough edge: Pause during count-in can still play the pre-scheduled clicks (not re-checked).
+- Touch dragging is checked with emulated touch only; no physical phone has tried it.
 
-## What to do next, in order
+## Process notes for the next agent
 
-1. Owner tests the prototype on the live site (desktop and phone) and reports what feels wrong.
-2. M1 starts with "start the sound on first click" (#7) and the on-screen keyboard (#8). Every
-   other M1 issue builds on those two.
-3. #17 (sample sourcing) can run any time, in parallel, since it's research only.
+- Commits end with `Committed by AJ's agent` (a house hook blocks Claude co-author trailers).
+- A builder subagent once failed on a false-positive safety refusal; retrying on another model worked.
+- Worktrees live under `.claude/worktrees/` (gitignored); lint/format/tests are scoped to skip them.

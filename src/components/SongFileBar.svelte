@@ -10,6 +10,7 @@
   }
   let { song, onReplace }: Props = $props();
 
+  let range = $state<"song" | "loop">("song");
   let loops = $state(1);
   let isRendering = $state(false);
   let message = $state("");
@@ -41,7 +42,10 @@
     message = "";
     isRendering = true;
     try {
-      const bytes = await engine.renderWav(song, loops);
+      const bytes = await engine.renderWav(song, {
+        range: song.loopRegion ? range : "song",
+        passes: loops,
+      });
       download(bytes, "audio/wav", "ajs-song.wav");
       isError = false;
       message = "Saved ajs-song.wav.";
@@ -90,6 +94,13 @@
 <section class="files" aria-label="Save and export">
   <div class="row">
     <label>
+      Export
+      <select bind:value={range} onchange={(e) => e.currentTarget.blur()}>
+        <option value="song">Whole song</option>
+        <option value="loop" disabled={!song.loopRegion}>Loop region</option>
+      </select>
+    </label>
+    <label class:hidden={range !== "loop"}>
       Passes
       <select bind:value={loops} onchange={(e) => e.currentTarget.blur()}>
         {#each [1, 2, 4, 8] as n (n)}
@@ -153,6 +164,9 @@
   button:disabled {
     opacity: 0.6;
     cursor: default;
+  }
+  .hidden {
+    display: none;
   }
   .status {
     margin: 0;

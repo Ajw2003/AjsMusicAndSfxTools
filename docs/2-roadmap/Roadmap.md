@@ -3,7 +3,8 @@
 The finished app: a web keyboard you can play with your computer keyboard, mouse or touch, with
 eight built-in instruments plus your own sounds, rebindable keys, themes and accessibility
 settings. You can record, loop, edit in a piano roll or step sequencer, and export WAV, MP3/OGG,
-MIDI and project files. It installs and works offline.
+MIDI and project files. Clips are arranged on a timeline like a video editor, with a chord builder
+and imported or microphone audio. It installs and works offline.
 
 Percentages are each milestone's share of the whole (they add to 100). A milestone counts as done
 only when its **Acceptance** has actually been checked by running the app, not when the code exists.
@@ -26,7 +27,9 @@ Prettier, ESLint, Vitest; GitHub Actions CI running lint, type check, tests and 
 **Acceptance:** `npm ci && npm run check && npm test && npm run build` passes on a fresh clone and
 in CI; `npm run dev` shows the blank app page in a browser.
 
-## M1: Playable keyboard (15%)
+## M1: Playable keyboard (10%)
+
+*Share changed 2026-10-03 from 15% to 10% to make room for M9 (see Decisions).*
 
 A keyboard on screen that you can play and hear, using one simple generated sound.
 
@@ -78,7 +81,9 @@ navigation of every control; accessibility audit.
 accessibility check (axe) shows no serious issues on each screen; NVDA (free Windows screen
 reader) reads the instrument picker and settings correctly; each theme passes WCAG AA contrast.
 
-## M5: Record and loop (15%)
+## M5: Record and loop (10%)
+
+*Share changed 2026-10-03 from 15% to 10% to make room for M9 (see Decisions).*
 
 Turn playing into music.
 
@@ -100,7 +105,9 @@ export; MIDI export; export options (whole song / selected tracks / loop count).
 media player and sound the same as in the app; the MIDI opens in a free program (e.g. MuseScore)
 with the right notes; a saved project opens again with nothing missing.
 
-## M7: Piano roll and step sequencer (15%)
+## M7: Piano roll and step sequencer (10%)
+
+*Share changed 2026-10-03 from 15% to 10% to make room for M9 (see Decisions).*
 
 See and fix the notes.
 
@@ -118,3 +125,23 @@ shows how to play in under 30 seconds; performance pass; Settings → About/cred
 
 **Acceptance:** install from Edge or Chrome on the owner's PC, turn off Wi-Fi, open it, play every
 instrument already downloaded, record and export a WAV.
+
+## M9: Arranger (15%)
+
+*Added 2026-10-03 at the owner's request; plan in `docs/plans/arranger-timeline.md`.*
+
+A timeline like a video editor's: recorded loops, chord progressions and audio become clips you drag,
+stretch, trim and layer.
+
+**Contains:** song format v2 (clips) with automatic upgrade of old songs; timeline that grows without a
+limit, with zoom and scroll; move, stretch (repeat), trim, split, duplicate, copy and paste clips with snap;
+clip inspector with typed fields for every drag; play from the playhead with an optional loop region;
+record into a clip in loop mode; chord builder (key, suggested chords, durations) making note clips;
+saved one-key chord pads you play live and record; audio tracks with imported WAV/MP3/OGG clips and
+waveforms; microphone recording into audio clips; audio carried in project files and WAV export.
+
+**Acceptance:** on the live site, make a 16-bar song with: a drum loop clip repeated by stretching, a
+chord-builder progression clip, a bass clip moved to start at bar 5, an imported audio file trimmed to
+fit, and a short microphone recording; then do every clip edit again using only the keyboard and
+inspector; reload and everything is still there; save, open in a fresh tab, and the audio is still
+there; export WAV and it sounds the same as playback.
