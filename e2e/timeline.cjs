@@ -1,9 +1,9 @@
 // Browser check for arranger phase A, steps A2–A6 (#72–#76).
 //
-// Not part of `npm test`: Playwright is not a project dependency yet. Run it
-// against a running dev server with a Playwright install on NODE_PATH:
-//   npx vite --port 5173 --strictPort      (in one terminal)
-//   node e2e/timeline.cjs                  (in another)
+// Run with `npm run test:e2e`: it builds the app, serves the build on a free
+// port and drives it in Chromium (install it once: `npx playwright install
+// chromium`). APP_URL=<url> tests an already-running app instead, and
+// CHROMIUM_PATH=<file> uses a Chromium already on the machine.
 // It prints one PASS/FAIL line per check and exits non-zero on any failure.
 
 const { chromium } = require("playwright");
@@ -11,7 +11,8 @@ const fs = require("node:fs");
 const os = require("node:os");
 const path = require("node:path");
 
-const URL = process.env.APP_URL ?? "http://localhost:5173/";
+/** Set in main(): APP_URL, or the address of the preview server it starts. */
+let URL = process.env.APP_URL ?? "";
 let failures = 0;
 function check(name, ok, detail = "") {
   if (!ok) failures++;
@@ -624,8 +625,24 @@ async function touchDrags(browser) {
   await context.close();
 }
 
+/** Serve the built app (dist/) with Vite's preview server. */
+async function startPreview() {
+  const { preview } = await import("vite");
+  const server = await preview({ preview: { port: 4173, open: false } });
+  const url = server.resolvedUrls?.local[0];
+  if (!url) throw new Error("The preview server did not report an address.");
+  return { server, url };
+}
+
 (async () => {
+  let preview = null;
+  if (!URL) {
+    preview = await startPreview();
+    URL = preview.url;
+  }
+  console.log(`Testing ${URL}`);
   const browser = await chromium.launch({
+    executablePath: process.env.CHROMIUM_PATH || undefined,
     args: ["--autoplay-policy=no-user-gesture-required"],
   });
   try {
@@ -639,6 +656,7 @@ async function touchDrags(browser) {
     await phone64Bars(browser);
   } finally {
     await browser.close();
+    await preview?.server.close();
   }
   console.log(failures === 0 ? "ALL PASS" : `${failures} FAILED`);
   process.exit(failures === 0 ? 0 : 1);
