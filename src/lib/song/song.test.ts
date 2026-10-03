@@ -533,3 +533,57 @@ describe("SongHistory", () => {
     expect(seen).toHaveLength(3);
   });
 });
+
+describe("chord labels follow their clip", () => {
+  const withLabels = (): Song => {
+    const s = createSong();
+    s.tracks[0].clips[0].content = {
+      kind: "notes",
+      notes: [note(0), note(8)],
+      labels: [
+        { startBeat: 0, name: "C" },
+        { startBeat: 8, name: "G" },
+      ],
+    };
+    return s;
+  };
+  const labelsOf = (s: Song, i = 0) => {
+    const c = clipOf(s, i).content;
+    return c.kind === "notes" ? c.labels?.map((l) => l.name) : undefined;
+  };
+  it("are copied by split and duplicate", () => {
+    const s = withLabels();
+    const id = clipOf(s).id;
+    const split = applyCommand(s, { type: "splitClip", clipId: id, atBeat: 4 });
+    expect(labelsOf(split, 1)).toEqual(["C", "G"]);
+    const dup = applyCommand(s, {
+      type: "duplicateClip",
+      clipId: id,
+      newClipId: "copy",
+    });
+    expect(labelsOf(dup, 1)).toEqual(["C", "G"]);
+  });
+  it("past a shortened loop are dropped with their notes", () => {
+    const s = withLabels();
+    const out = applyCommand(s, {
+      type: "updateClip",
+      clipId: clipOf(s).id,
+      changes: { loopBeats: 8 },
+    });
+    expect(labelsOf(out)).toEqual(["C"]);
+    expect(notesOf(out)).toHaveLength(1);
+  });
+  it("survive recording more notes, and go when the clip is cleared", () => {
+    const s = withLabels();
+    const id = clipOf(s).id;
+    const more = applyCommand(s, {
+      type: "addNotesToClip",
+      clipId: id,
+      notes: [note(2, 1, "x")],
+    });
+    expect(labelsOf(more)).toEqual(["C", "G"]);
+    expect(labelsOf(applyCommand(s, { type: "clearClip", clipId: id }))).toBe(
+      undefined,
+    );
+  });
+});
