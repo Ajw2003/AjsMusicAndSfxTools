@@ -15,21 +15,19 @@
 - **#72/#73/#76 done (not merged), 2026-10-03:** the WIP patch was applied, finished and the patch file deleted.
   Timeline view, playback from the playhead, Loop toggle, New clip, record into clips, whole-song export.
   Checked: types/lint/format clean, 102 unit tests, build, browser check `e2e/timeline.cjs` 22/22 twice.
-  Run it with a dev server up: `NODE_PATH=<global node_modules with playwright> node e2e/timeline.cjs`.
+  Run it with `npm run test:e2e` (Playwright is now a dev dependency and the check runs in CI).
 - **#74/#75 done (not merged), 2026-10-03:** drag clips with snap; clip inspector, split, duplicate, copy/paste,
   delete, keyboard shortcuts. **Phase A (#71–#76) is complete on the branch.** `e2e/timeline.cjs`: 53/53 (incl. emulated touch).
 
 ## Next session, in order
 
-1. Open a PR for phase A (needs the owner's go-ahead), get CI green, then merge **only if the owner says so**:
-   they have not yet answered whether the agent may merge each phase itself.
+1. Phase A pull request: opened with the owner's go-ahead. Get CI green, then merge **only if the owner says
+   so**: they have not yet answered whether the agent may merge each phase itself.
 2. Then phase B (#77 chord builder, #78 one-key chord pads), C (#79–#81 audio files), D (#82 microphone).
-3. Adding Playwright as a dev dependency (so `e2e/` runs in CI) needs the owner's yes.
 
 ## Open questions for the owner
 
 - May the agent merge each arranger phase itself once CI and its own browser checks pass?
-- May I open the phase A pull request? And add Playwright as a dev dependency so the browser checks run in CI?
 - Still open from earlier: themes beyond the four planned; default note names (C D E vs Do Re Mi).
 
 ## Not done / known gaps

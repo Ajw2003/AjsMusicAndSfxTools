@@ -5,6 +5,21 @@ Append-only. Newest at the top. An old entry is never rewritten; when one is rep
 
 ---
 
+## 2026-10-03 — Add Playwright for browser checks
+
+**Context.** The arranger's timeline, dragging and playback can only be properly checked in a real browser.
+Those checks were scripts in a reclaimed session folder, then a hand-run `e2e/timeline.cjs` using a
+Playwright install outside the project. The owner approved adding it.
+
+**Decision.** `playwright` 1.63.0 (open source, Apache-2.0) is a pinned dev dependency. `npm run test:e2e`
+builds the app, serves the build with Vite's preview server and runs `e2e/timeline.cjs` in Chromium; CI
+installs Chromium and runs it on every push.
+
+**Why.** It drives real pointer, touch and keyboard input and reads the page as a person would. Rejected:
+`@playwright/test` (a whole test runner, not needed for one script yet) and hand-checking (not repeatable).
+
+**Status.** Standing.
+
 ## 2026-10-03 — Add an arranger timeline (M9) and rebalance the roadmap
 
 **Context.** After trying the chiptune prototype the owner asked for video-editor-style timeline

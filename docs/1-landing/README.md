@@ -13,7 +13,7 @@ Personal project, MIT licensed. Built as a web app (TypeScript, Vite, Svelte, To
 | Part | One line | Where |
 |---|---|---|
 | App shell | Vite + Svelte + TypeScript app (empty page so far) | `src/`, `index.html`, `package.json`, `vite.config.ts` |
-| Checks | Prettier, ESLint, svelte-check, Vitest; run in CI on every push | `package.json` scripts, `eslint.config.js`, `.github/workflows/ci.yml` |
+| Checks | Prettier, ESLint, svelte-check, Vitest, Playwright browser checks (`e2e/`); run in CI on every push | `package.json` scripts, `eslint.config.js`, `.github/workflows/ci.yml` |
 | Live site | Public build at https://ajw2003.github.io/AjsMusicAndSfxTools/, redeployed on every push to `main` | `.github/workflows/pages.yml` |
 | Docs | These six tiers | `docs/` |
 | Issues | One GitHub Milestone per roadmap stage, parent + sub-issues | GitHub Issues / Milestones |
@@ -52,6 +52,7 @@ All designed, none built yet (see [the systems index](../4-systems/README.md)).
 | `npm run lint` | ESLint |
 | `npm run check` | Type check (svelte-check + tsc) |
 | `npm test` | Vitest unit tests (`src/**/*.test.ts`) |
+| `npm run test:e2e` | Builds, serves the build and runs the browser checks in `e2e/` (first run `npx playwright install chromium` once) |
 | `npm run build` | Production build into `dist/` |
 
 ## Everything else
