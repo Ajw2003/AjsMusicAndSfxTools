@@ -41,8 +41,10 @@ Plan: `docs/plans/chiptune-prototype.md`. Built in three chunks (pure logic, eng
   Ctrl+Shift+Z; reload restores both tracks from autosave; WAV download 529,244 bytes with 121,734 non-zero
   samples; drum keys labelled Kick/Snare/Hat; no horizontal scroll at 1280/390/360 px; one octave on phone;
   no console or page errors. 66 unit tests pass.
-- **Not checked:** anything heard by a person (headless has no speakers); real phone touch; Open project and
-  New song in a browser; key-to-sound latency.
+- **Also checked after merge (same build as live, `index-VPZK03c6.js`):** Open project with a valid file
+  restores 2 tracks and BPM 100; an invalid file shows an error and keeps the current song; New song clears it.
+- **Not checked:** anything heard by a person (headless has no speakers); real phone touch (only emulated);
+  key-to-sound latency (#15, needs the owner's PC).
 - **Known rough edges:** Stop during the count-in can still play the remaining clicks (they are pre-scheduled);
   phone white keys are 41–45 px at 360 px wide; drum tracks show 2 octaves on phone so all three drums fit.
 
