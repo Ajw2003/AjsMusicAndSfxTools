@@ -25,6 +25,8 @@ Nothing from M1 onward exists.
 - **Done:** app shell, Vite 8 + Svelte 5 + TypeScript 6 strict (#3); Prettier, ESLint, svelte-check,
   Vitest with one real test of `src/lib/note-names.ts` (#4); GitHub Actions CI in
   `.github/workflows/ci.yml` (#5). All five checks pass locally and in CI (run 37134666466).
+- **Added, not yet live:** GitHub Pages deploy workflow. Needs Pages switched on in repo settings
+  and this branch merged to `main`; no deploy has run yet.
 - **Not checked:** `npm run dev` on the owner's Windows PC (Node.js may not be installed there).
 
 ## The one thing that is not what it looks like

@@ -14,6 +14,7 @@ Personal project, MIT licensed. Built as a web app (TypeScript, Vite, Svelte, To
 |---|---|---|
 | App shell | Vite + Svelte + TypeScript app (empty page so far) | `src/`, `index.html`, `package.json`, `vite.config.ts` |
 | Checks | Prettier, ESLint, svelte-check, Vitest; run in CI on every push | `package.json` scripts, `eslint.config.js`, `.github/workflows/ci.yml` |
+| Live site | Public build at https://ajw2003.github.io/AjsMusicAndSfxTools/, redeployed on every push to `main` (once Pages is switched on) | `.github/workflows/pages.yml` |
 | Docs | These six tiers | `docs/` |
 | Issues | One GitHub Milestone per roadmap stage, parent + sub-issues | GitHub Issues / Milestones |
 | Credits | Licence and author of every third-party sample | `CREDITS.md` |

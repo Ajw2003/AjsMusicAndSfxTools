@@ -5,6 +5,22 @@ Append-only. Newest at the top. An old entry is never rewritten; when one is rep
 
 ---
 
+## 2026-10-03 — Public test site on GitHub Pages, deployed from main
+
+**Context.** The owner wanted to test the app on their phone. A private claude.ai page works but
+has to be republished by hand.
+
+**Decision.** A GitHub Actions workflow (`.github/workflows/pages.yml`) builds and deploys to
+https://ajw2003.github.io/AjsMusicAndSfxTools/ on every push to `main`, plus a manual "Run workflow"
+button. Built with `--base ./` because Pages serves from a sub-path.
+
+**Why.** Updates itself, opens on any device. Accepted trade-off: anyone with the address can open
+it (the repo is already public). Deploying only from `main` keeps half-finished branch work off the
+site. Pages had to be switched on by the owner in repo settings; the agent's GitHub access can't
+change that setting.
+
+**Status.** Standing.
+
 ## 2026-10-03 — GitHub organisation: Milestones + parent issues + sub-issues
 
 **Context.** First planning session.
