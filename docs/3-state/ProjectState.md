@@ -11,14 +11,15 @@ projects and download a WAV. Checked by a headless-browser run (21/21 checks, de
 | Milestone | Share | Status | Parent issue |
 |---|---|---|---|
 | M0: Foundation | 5% | Built; CI green; owner's local run not yet checked | #1 |
-| M1: Playable keyboard | 15% | Mostly built (latency #15 not measured; owner test pending) | #6 |
+| M1: Playable keyboard | 10% | Mostly built (latency #15 not measured; owner test pending) | #6 |
 | M2: Instruments | 15% | Chiptune only (#25); no samples | #16 |
 | M3: Customising sounds and keys | 10% | Not started | #28 |
 | M4: Themes and accessibility | 10% | Not started | #34 |
-| M5: Record and loop | 15% | Mostly built (loop mode, undo, autosave, metronome, quantize) | #42 |
+| M5: Record and loop | 10% | Mostly built (loop mode, undo, autosave, metronome, quantize) | #42 |
 | M6: Save and export | 10% | Project files + WAV built; MP3/OGG, MIDI, options not | #51 |
-| M7: Piano roll and step sequencer | 15% | Read-only loop view only | #57 |
+| M7: Piano roll and step sequencer | 10% | Read-only loop view only | #57 |
 | M8: Installable, offline and polished | 5% | Not started | #62 |
+| M9: Arranger | 15% | #71 song format v2 built on branch (not merged); #72/#73/#76 partial (unverified patch); rest not started | #70 |
 
 ## M0: Foundation
 
@@ -47,6 +48,15 @@ Plan: `docs/plans/chiptune-prototype.md`. Built in three chunks (pure logic, eng
   key-to-sound latency (#15, needs the owner's PC).
 - **Known rough edges:** Stop during the count-in can still play the remaining clicks (they are pre-scheduled);
   phone white keys are 41–45 px at 360 px wide; drum tracks show 2 octaves on phone so all three drums fit.
+
+## M9: Arranger (#70)
+
+Plan: `docs/plans/arranger-timeline.md`. Handoff detail: `docs/5-today/Today.md`.
+
+- **Built, on branch only:** song format v2 (#71), checked: 95 unit tests, browser regression 23/23.
+- **Partial, unverified:** timeline view / playback / record into clip (#72, #73, #76) saved as
+  `docs/plans/arranger-a2-a3-wip.patch`.
+- **Not started:** #74, #75, #77–#82.
 
 ## The one thing that is not what it looks like
 
