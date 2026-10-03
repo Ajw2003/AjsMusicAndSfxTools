@@ -25,10 +25,9 @@ Nothing from M1 onward exists.
 - **Done:** app shell, Vite 8 + Svelte 5 + TypeScript 6 strict (#3); Prettier, ESLint, svelte-check,
   Vitest with one real test of `src/lib/note-names.ts` (#4); GitHub Actions CI in
   `.github/workflows/ci.yml` (#5). All five checks pass locally and in CI (run 37134666466).
-- **Merged, not live:** PR #67 merged to `main` on 2026-10-03. The Pages deploy ran and failed
-  ("Failed to create deployment (status: 404) ... Ensure GitHub Pages has been enabled", run
-  37136626267) because Pages is not yet switched on in repo settings. The site returns 404 until the
-  owner sets Settings → Pages → Source to GitHub Actions and the deploy is re-run.
+- **Live:** https://ajw2003.github.io/AjsMusicAndSfxTools/ serves the app (HTTP 200, page and script
+  checked 2026-10-03) after the owner switched Pages on and the deploy run 37136626267 was re-run
+  successfully. Every push to `main` redeploys.
 - **Not checked:** `npm run dev` on the owner's Windows PC (Node.js may not be installed there).
 
 ## The one thing that is not what it looks like

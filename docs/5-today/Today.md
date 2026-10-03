@@ -14,6 +14,8 @@
 - Fixed: lint, format and tests were also scanning agent worktree copies under `.claude/`; now excluded.
 - Published the current build as a private claude.ai page for phone testing: https://claude.ai/artifact/RcupkZeGwx6UZqqtpD8xxv (built with `npx vite build --base ./`; republish after each milestone).
 
+- GitHub Pages is live at https://ajw2003.github.io/AjsMusicAndSfxTools/ (PR #67 merged; deploy re-run after Pages was switched on).
+
 ## Deliberately not done
 
 - No instrument or audio code. That's M1, and it waits until the shell, checks and CI exist.
