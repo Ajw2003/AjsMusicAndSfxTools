@@ -1,13 +1,14 @@
 # Project state (tier 3): where it stands right now
 
-**As of 2026-10-03. Overall: about 2% of 100%.**
+**As of 2026-10-03. Overall: 5% of 100% (M0 built; waiting on the owner's check).**
 
-M0 (5%) is roughly half done: docs, licence, milestones and issues exist. No app code has
-shipped yet. Nothing from M1 onward exists.
+M0 is built: docs, issues, an empty app that builds, code checks and CI, which passed on GitHub on
+commit 853fe43. The one acceptance step not yet checked is `npm run dev` on the owner's own PC.
+Nothing from M1 onward exists.
 
 | Milestone | Share | Status | Parent issue |
 |---|---|---|---|
-| M0: Foundation | 5% | In progress: docs and issues done; app shell, checks and CI not yet | #1 |
+| M0: Foundation | 5% | Built; CI green; owner's local run not yet checked | #1 |
 | M1: Playable keyboard | 15% | Not started | #6 |
 | M2: Instruments | 15% | Not started | #16 |
 | M3: Customising sounds and keys | 10% | Not started | #28 |
@@ -20,8 +21,11 @@ shipped yet. Nothing from M1 onward exists.
 ## M0: Foundation
 
 - **Done:** six doc tiers, `CLAUDE.md`, `LICENSE` (MIT), `CREDITS.md` (empty, no samples yet),
-  9 GitHub Milestones, 9 parent issues, 57 sub-issues (#2 docs).
-- **Not done:** app shell (#3), code checks (#4), CI (#5).
+  9 GitHub Milestones, 9 parent issues, 57 sub-issues (#2).
+- **Done:** app shell, Vite 8 + Svelte 5 + TypeScript 6 strict (#3); Prettier, ESLint, svelte-check,
+  Vitest with one real test of `src/lib/note-names.ts` (#4); GitHub Actions CI in
+  `.github/workflows/ci.yml` (#5). All five checks pass locally and in CI (run 37134666466).
+- **Not checked:** `npm run dev` on the owner's Windows PC (Node.js may not be installed there).
 
 ## The one thing that is not what it looks like
 

@@ -12,7 +12,8 @@ Personal project, MIT licensed. Built as a web app (TypeScript, Vite, Svelte, To
 
 | Part | One line | Where |
 |---|---|---|
-| App shell | Vite + Svelte + TypeScript app | `src/`, `index.html`, `package.json` (being added in #3) |
+| App shell | Vite + Svelte + TypeScript app (empty page so far) | `src/`, `index.html`, `package.json`, `vite.config.ts` |
+| Checks | Prettier, ESLint, svelte-check, Vitest; run in CI on every push | `package.json` scripts, `eslint.config.js`, `.github/workflows/ci.yml` |
 | Docs | These six tiers | `docs/` |
 | Issues | One GitHub Milestone per roadmap stage, parent + sub-issues | GitHub Issues / Milestones |
 | Credits | Licence and author of every third-party sample | `CREDITS.md` |
@@ -39,6 +40,18 @@ All designed, none built yet (see [the systems index](../4-systems/README.md)).
 | [Input mapping](../4-systems/input-mapping.md) | Keys, mouse, touch → notes; rebinding; layout presets |
 | [Song timeline](../4-systems/song-timeline.md) | The song data shared by recording, loops, piano roll, step sequencer |
 | [Persistence and export](../4-systems/persistence-and-export.md) | Settings, autosave, project files, WAV/MP3/OGG/MIDI |
+
+## Commands
+
+| Command | Does |
+|---|---|
+| `npm ci` | Install exact dependency versions from the lockfile |
+| `npm run dev` | Start the app at http://localhost:5173 |
+| `npm run format` / `format:check` | Format with Prettier / check formatting |
+| `npm run lint` | ESLint |
+| `npm run check` | Type check (svelte-check + tsc) |
+| `npm test` | Vitest unit tests (`src/**/*.test.ts`) |
+| `npm run build` | Production build into `dist/` |
 
 ## Everything else
 
