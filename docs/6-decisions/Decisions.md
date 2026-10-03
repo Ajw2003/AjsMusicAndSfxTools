@@ -5,6 +5,22 @@ Append-only. Newest at the top. An old entry is never rewritten; when one is rep
 
 ---
 
+## 2026-10-03 — First prototype is a chiptune loop-pedal song builder
+
+**Context.** The owner asked for "a usable prototype worth showing where I can actually make a song with
+even one type of sound, i.e. only chiptune first." Plan: `docs/plans/chiptune-prototype.md`.
+
+**Decision.** Build a loop-based song (1–8 bars, repeating) with up to 8 tracks, each one chiptune sound;
+record over the loop, each pass is one undo step; autosave to localStorage; project file and WAV export.
+The transport counts in ticks so tempo changes never move notes. Mute works by not scheduling the track,
+so live play on a muted track still sounds.
+
+**Why.** Smallest thing that makes a real song, and it is the M5 loop mode from the song-timeline design, so
+nothing is throwaway. Rejected for now: a free timeline (needs the piano roll first) and building every
+instrument before any song features.
+
+**Status.** Standing.
+
 ## 2026-10-03 — Public test site on GitHub Pages, deployed from main
 
 **Context.** The owner wanted to test the app on their phone. A private claude.ai page works but

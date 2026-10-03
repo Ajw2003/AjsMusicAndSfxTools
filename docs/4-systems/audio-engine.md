@@ -1,6 +1,9 @@
 # Audio engine
 
-**Built?** No. Planned design, 2026-10-03. Rewrite this against the code once it exists.
+**Built?** Mostly, 2026-10-03, for the chiptune prototype (#68): `AudioEngine` in `src/lib/audio/engine.ts:193`.
+Differs from the design below: the transport counts in ticks (PPQ 192); muting works by not
+scheduling a track (`setSong`, `engine.ts:296`), so live play ignores mute; count-in is
+`playWithCountIn` (`engine.ts:374`); export is `renderWav` (`engine.ts:419`). Latency not measured yet (#15).
 
 ## What it owns
 

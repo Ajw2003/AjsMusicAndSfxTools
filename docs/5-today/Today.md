@@ -16,9 +16,12 @@
 
 - GitHub Pages is live at https://ajw2003.github.io/AjsMusicAndSfxTools/ (PR #67 merged; deploy re-run after Pages was switched on).
 
+- Built the chiptune song prototype (#68) in three builder chunks, each re-checked on the branch: 66 unit
+  tests, and a headless-browser song test 21/21.
+
 ## Deliberately not done
 
-- No instrument or audio code. That's M1, and it waits until the shell, checks and CI exist.
+- Only chiptune sounds; sampled instruments wait on #17 (licences).
 - No sample packs chosen. Licences must be read first (#17).
 
 ## Surfaced, not today's job
@@ -28,7 +31,7 @@
 
 ## What to do next, in order
 
-1. Owner runs the app once on their PC (commands in the landing page's Commands table) to tick off M0, then closes #1–#5.
+1. Owner tests the prototype on the live site (desktop and phone) and reports what feels wrong.
 2. M1 starts with "start the sound on first click" (#7) and the on-screen keyboard (#8). Every
    other M1 issue builds on those two.
 3. #17 (sample sourcing) can run any time, in parallel, since it's research only.

@@ -1,6 +1,7 @@
 # Instruments
 
-**Built?** No. Planned design, 2026-10-03. Rewrite this against the code once it exists.
+**Built?** Chiptune only, 2026-10-03: four presets in `src/lib/audio/chiptune.ts`; noise drums pick kick/snare/hat
+by pitch (`src/lib/audio/drums.ts:4`: below C4 kick, C4–B4 snare, C5 and up hat). No sampled instruments yet.
 
 ## What it owns
 

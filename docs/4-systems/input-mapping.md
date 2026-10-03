@@ -1,6 +1,8 @@
 # Input mapping
 
-**Built?** No. Planned design, 2026-10-03. Rewrite this against the code once it exists.
+**Built?** Partly, 2026-10-03: both presets in `src/lib/input/key-layouts.ts`, on-screen keys and pointer/keyboard
+handling in `src/components/Keyboard.svelte`. Rebinding (M3) not built. On phones (≤600px) one octave
+is shown and the layout picker is hidden.
 
 ## What it owns
 
