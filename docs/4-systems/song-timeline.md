@@ -1,8 +1,11 @@
 # Song timeline
 
-**Built?** Loop mode built, 2026-10-03: model and undo in `src/lib/song/song.ts`, recording in
-`src/lib/song/recorder.ts:14`. Each loop pass is committed as one `addNotes` command, so one undo removes
-one pass. Notes crossing the loop end are clipped (`wrapNoteToLoop`). Piano roll and step sequencer not built.
+**Built?** Song format v2 with clips, 2026-10-03 (#71): `src/lib/song/song.ts` holds tracks → clips; a clip
+repeats its source loop (`loopBeats`) to fill `lengthBeats`, trimmed by `offsetBeats`; `expandClipNotes`
+turns a clip into absolute timeline notes for the engine. Old (v1) songs and autosaves upgrade on load in
+`src/lib/song/storage.ts` (each track's notes become one clip at bar 1; loop region = the old loop).
+The UI still shows only the loop region; the timeline view is #73. Recording goes into each track's first
+clip (`recorder.ts`), one pass = one undo step. A `batch` command groups multi-step edits into one undo.
 
 ## What it owns
 
