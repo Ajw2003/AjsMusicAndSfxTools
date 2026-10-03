@@ -19,4 +19,12 @@ export default tseslint.config(
     files: ["*.config.{js,ts}"],
     languageOptions: { globals: { ...globals.node } },
   },
+  {
+    // Browser checks run under Node with a Playwright install on NODE_PATH.
+    files: ["e2e/**/*.cjs"],
+    languageOptions: {
+      globals: { ...globals.node, ...globals.commonjs, ...globals.browser },
+    },
+    rules: { "@typescript-eslint/no-require-imports": "off" },
+  },
 );
