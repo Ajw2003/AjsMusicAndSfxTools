@@ -521,7 +521,12 @@ export class AudioEngine {
 
   /** Playhead position on the timeline, in beats (float). */
   currentBeat(): number {
-    return Tone.getTransport().ticks / PPQ;
+    const beat = Tone.getTransport().ticks / PPQ;
+    const loop = this.activeLoop;
+    if (!loop || beat < loop.endBeat) return beat;
+    // Right at the wrap the transport can briefly report the loop end itself.
+    const length = loop.endBeat - loop.startBeat;
+    return loop.startBeat + ((beat - loop.startBeat) % length);
   }
 
   /**
