@@ -2,78 +2,33 @@
   import { positionLabel } from "../lib/song/loop-view";
 
   interface Props {
-    bpm: number;
-    /** "New clip length" in bars. */
-    newClipBars: number;
     beat: number;
-    loopOn: boolean;
     isPlaying: boolean;
     isCountingIn: boolean;
     isRecording: boolean;
     canUndo: boolean;
     canRedo: boolean;
-    metronomeOn: boolean;
-    quantizeGrid: number;
     onPlayPause: () => void;
     onBackToStart: () => void;
-    onLoop: (isOn: boolean) => void;
-    onNewClip: () => void;
     onRecordToggle: () => void;
-    onBpm: (bpm: number) => void;
-    onNewClipBars: (bars: number) => void;
-    onMetronome: (isOn: boolean) => void;
-    onQuantize: (grid: number) => void;
     onUndo: () => void;
     onRedo: () => void;
   }
   let {
-    bpm,
-    newClipBars,
     beat,
-    loopOn,
     isPlaying,
     isCountingIn,
     isRecording,
     canUndo,
     canRedo,
-    metronomeOn,
-    quantizeGrid,
     onPlayPause,
     onBackToStart,
-    onLoop,
-    onNewClip,
     onRecordToggle,
-    onBpm,
-    onNewClipBars,
-    onMetronome,
-    onQuantize,
     onUndo,
     onRedo,
   }: Props = $props();
 
-  const BARS = [1, 2, 4, 8];
-  const QUANTIZE = [
-    { value: 0, label: "Off" },
-    { value: 0.25, label: "1/4 beat (1/16 note)" },
-    { value: 0.5, label: "1/2 beat (1/8 note)" },
-    { value: 1, label: "1 beat" },
-  ];
-
   const busy = $derived(isPlaying || isCountingIn);
-
-  function onBpmChange(e: Event & { currentTarget: HTMLInputElement }): void {
-    const value = Number(e.currentTarget.value);
-    if (Number.isFinite(value) && e.currentTarget.value !== "") {
-      onBpm(value);
-    }
-    // Show the clamped value the song actually has.
-    e.currentTarget.value = String(bpm);
-  }
-
-  // After a select changes, hand focus back so computer keys play at once.
-  function blurAfter(e: Event & { currentTarget: HTMLSelectElement }): void {
-    e.currentTarget.blur();
-  }
 </script>
 
 <section class="transport" aria-label="Transport">
@@ -82,9 +37,6 @@
       {busy ? "Pause" : "Play"}
     </button>
     <button type="button" onclick={onBackToStart}>Back to start</button>
-    <button type="button" aria-pressed={loopOn} onclick={() => onLoop(!loopOn)}>
-      Loop
-    </button>
     <button
       type="button"
       class="record"
@@ -100,55 +52,6 @@
     <button type="button" disabled={!canUndo} onclick={onUndo}>Undo</button>
     <button type="button" disabled={!canRedo} onclick={onRedo}>Redo</button>
   </div>
-  <div class="row">
-    <label>
-      BPM
-      <input
-        type="number"
-        min="40"
-        max="240"
-        step="1"
-        value={bpm}
-        onchange={onBpmChange}
-      />
-    </label>
-    <label>
-      New clip length
-      <select
-        value={newClipBars}
-        onchange={(e) => {
-          onNewClipBars(Number(e.currentTarget.value));
-          blurAfter(e);
-        }}
-      >
-        {#each BARS as b (b)}
-          <option value={b}>{b} {b === 1 ? "bar" : "bars"}</option>
-        {/each}
-      </select>
-    </label>
-    <button type="button" onclick={onNewClip}>New clip</button>
-    <label>
-      Quantize
-      <select
-        value={quantizeGrid}
-        onchange={(e) => {
-          onQuantize(Number(e.currentTarget.value));
-          blurAfter(e);
-        }}
-      >
-        {#each QUANTIZE as q (q.value)}
-          <option value={q.value}>{q.label}</option>
-        {/each}
-      </select>
-    </label>
-    <button
-      type="button"
-      aria-pressed={metronomeOn}
-      onclick={() => onMetronome(!metronomeOn)}
-    >
-      Metronome
-    </button>
-  </div>
 </section>
 
 <style>
@@ -163,11 +66,10 @@
     align-items: center;
     gap: 0.5rem 0.75rem;
   }
-  button,
-  input,
-  select {
+  button {
     font: inherit;
-    min-height: 2.75rem;
+    font-size: 1.1rem;
+    min-height: 3.25rem;
     box-sizing: border-box;
     padding: 0.25rem 0.9rem;
     color: var(--color-text);
@@ -200,16 +102,9 @@
     border-color: var(--color-error);
     box-shadow: inset 0 0 0 2px var(--color-error);
   }
-  label {
-    display: flex;
-    align-items: center;
-    gap: 0.5rem;
-  }
-  input[type="number"] {
-    width: 5rem;
-  }
   .position {
     min-width: 8rem;
+    font-size: 1.1rem;
     font-variant-numeric: tabular-nums;
     color: var(--color-muted);
   }
@@ -217,9 +112,7 @@
     .row {
       gap: 0.4rem 0.5rem;
     }
-    button,
-    input,
-    select {
+    button {
       padding: 0.25rem 0.6rem;
     }
     .position {
