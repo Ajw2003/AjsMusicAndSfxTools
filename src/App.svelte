@@ -91,6 +91,7 @@
   ];
   const PANEL_KEY = "ajs-music.ui.panel";
   const KEYBOARD_KEY = "ajs-music.ui.keyboard-hidden";
+  const TIPS_KEY = "ajs-music.ui.tips-hidden";
 
   /** Read a saved UI choice; storage can be missing or blocked. */
   function loadUi(key: string): string | null {
@@ -115,6 +116,7 @@
   let openPanel = $state<PanelId | null>(
     PANELS.some((p) => p.id === savedPanel) ? (savedPanel as PanelId) : null,
   );
+  let isTipsHidden = $state(loadUi(TIPS_KEY) === "true");
   let isKeyboardHidden = $state(loadUi(KEYBOARD_KEY) === "true");
 
   /**
@@ -783,10 +785,31 @@
 <main>
   <header>
     <h1>AJ's Music & SFX Tools</h1>
-    <p class="help">
-      Pick a sound, press Record, play along with the loop. Select a clip to
-      record into it; New clip adds one at the playhead. Add tracks to layer.
-    </p>
+    {#if !isTipsHidden}
+      <div class="help">
+        <ol>
+          <li>Pick a sound.</li>
+          <li>Press Record and play along with the loop.</li>
+          <li>Select a clip to record into it, or press New clip.</li>
+        </ol>
+        <button
+          type="button"
+          onclick={() => {
+            isTipsHidden = true;
+            saveUi(TIPS_KEY, "true");
+          }}>Hide tips</button
+        >
+      </div>
+    {:else}
+      <button
+        type="button"
+        class="tips-toggle"
+        onclick={() => {
+          isTipsHidden = false;
+          saveUi(TIPS_KEY, "false");
+        }}>Show tips</button
+      >
+    {/if}
   </header>
 
   <TransportBar
@@ -962,8 +985,29 @@
     font-size: 1.5rem;
   }
   .help {
-    margin: 0;
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.5rem 1rem;
     color: var(--color-muted);
+  }
+  .help ol {
+    margin: 0;
+    padding-left: 1.25rem;
+  }
+  .help button,
+  .tips-toggle {
+    font: inherit;
+    min-height: 2.75rem;
+    padding: 0.25rem 0.9rem;
+    color: var(--color-text);
+    background: var(--color-surface);
+    border: 1px solid var(--color-border);
+    border-radius: 0.5rem;
+    cursor: pointer;
+  }
+  .tips-toggle {
+    align-self: flex-start;
   }
   .panel-tabs {
     display: flex;

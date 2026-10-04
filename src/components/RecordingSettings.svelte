@@ -17,15 +17,15 @@
   const BARS = [1, 2, 4, 8];
   const QUANTIZE = [
     { value: 0, label: "Off" },
-    { value: 0.25, label: "1/4 beat (1/16 note)" },
-    { value: 0.5, label: "1/2 beat (1/8 note)" },
-    { value: 1, label: "1 beat" },
+    { value: 0.25, label: "Light" },
+    { value: 0.5, label: "Strong" },
+    { value: 1, label: "On the beat" },
   ];
 </script>
 
 <section class="panel" aria-label="Recording settings">
   <label>
-    Quantize
+    Tidy timing
     <select
       value={quantizeGrid}
       onchange={(e) => {

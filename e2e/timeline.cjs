@@ -106,7 +106,7 @@ async function openSong(page, json, name) {
 }
 
 const position = (page) => page.getByLabel("Position").textContent();
-const bpmInput = (page) => page.getByLabel("BPM");
+const bpmInput = (page) => page.getByLabel("Tempo (beats per minute)");
 
 async function setBpm(page, bpm) {
   await openPanel(page, "Song");
@@ -397,17 +397,17 @@ async function dragClips(browser) {
   await undo();
 
   await openPanel(page, "Timeline");
-  await page.getByLabel("Snap").selectOption({ label: "Bar" });
+  await page.getByLabel("Line clips up to:").selectOption({ label: "Bars" });
   await dragBy(page, "A", "move", 2.6);
   g = await geometry(page, "A");
   check("bar snap lands on a bar", g.start === 8, at(g));
   await undo();
-  await page.getByLabel("Snap").selectOption({ label: "Off" });
+  await page.getByLabel("Line clips up to:").selectOption({ label: "Nothing" });
   await dragBy(page, "A", "move", 1.5);
   g = await geometry(page, "A");
   check("snap off moves freely", Math.abs(g.start - 5.5) < 0.05, at(g));
   await undo();
-  await page.getByLabel("Snap").selectOption({ label: "Beat" });
+  await page.getByLabel("Line clips up to:").selectOption({ label: "Beats" });
 
   const laneHeight = await page
     .locator('[data-track-id="t2"]')
@@ -812,10 +812,13 @@ async function keyboardOnlyClipEdits(browser) {
   await typeInto("Name", "Hook");
   await typeInto("Start bar", 3);
   await typeInto("Beat", 2);
-  await typeInto("Length (beats)", 8);
-  await typeInto("Loop length (beats)", 2);
-  await typeInto("Transpose (semitones)", 12);
-  await typeInto("Volume (dB)", -6);
+  await typeInto("Length", 8);
+  await typeInto("Repeats every", 2);
+  await typeInto("Higher / lower (steps)", 12);
+  await page
+    .getByRole("region", { name: /^Clip / })
+    .getByRole("slider", { name: "Volume" })
+    .fill("-6");
   let saved = await savedSong(page);
   const c = saved.tracks[0].clips[0];
   check(

@@ -217,9 +217,9 @@ export const MIN_DRAG_BEATS = 0.25;
 
 /** Snap choices for dragging, in beats per grid line; 0 is off. */
 export const SNAP_OPTIONS = [
-  { value: 0, label: "Off" },
-  { value: 1, label: "Beat" },
-  { value: 4, label: "Bar" },
+  { value: 0, label: "Nothing" },
+  { value: 1, label: "Beats" },
+  { value: 4, label: "Bars" },
 ] as const;
 
 export type ClipPlacement = Pick<
