@@ -43,7 +43,12 @@ Both groups benefit from the same thing: **less on screen, said more plainly.**
 
 Each step is one sub-issue of #84, built and browser-checked on its own, with before/after screenshots.
 
-### 1. A calmer layout (biggest change) — #86
+### 1. A calmer layout (biggest change) — #86, built 2026-10-04
+
+*Built as planned, with two choices made while building:* Loop moved with the loop bars into the Timeline
+panel, and Add track moved into the Track panel. Opening a panel by its button scrolls it into view if the
+keyboard would hide it; clicking a clip opens the Clip panel **without** moving the page, so the clip stays
+under the pointer. Screenshots: `docs/generated/usability/after-1-*`.
 
 - **Top bar = the four things you always need:** Play/Pause, Back to start, Record, and the position, larger
   than today. Undo/Redo stay next to them.

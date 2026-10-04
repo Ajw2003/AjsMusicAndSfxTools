@@ -83,7 +83,9 @@ Plan: `docs/plans/arranger-timeline.md`. Handoff detail: `docs/5-today/Today.md`
   0.0 ms after the press instead of 20 ms or more. See Decisions, 2026-10-04.
 - **Not started:** #79–#82.
 - **Next UI pass, in progress:** #84 (dyslexia and ADHD usability), steps #86–#90, owner-approved
-  2026-10-04 and scheduled before phase C. Already noted for it: on a phone the
+  2026-10-04 and scheduled before phase C. On the branch, not merged: press-and-drag scrubbing on the
+  timeline (owner's request; drags no longer select text) and step 1, the calmer layout (#86).
+  `npm run test:e2e` 77/77, twice. Already noted for it: on a phone the
   chord builder's per-chord buttons wrap untidily, and chord pads make the keyboard dock taller.
 
 ## The one thing that is not what it looks like

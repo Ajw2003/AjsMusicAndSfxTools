@@ -14,7 +14,8 @@
 
 ## Next session, in order
 
-1. Build #86 and #87 first, then #88, #89; #90 runs throughout. Browser-check each step, with before/after
+1. Done on the branch: scrubbing (owner's request) and #86 calmer layout. Next: #87 plain words, then #88,
+   #89; #90 runs throughout. Browser-check each step, with before/after
    screenshots in `docs/generated/usability/`.
 2. One PR for the pass (or one per step if the owner prefers), then the owner tries it.
 3. Then phase C: #79–#81 audio files, then D: #82 microphone.
