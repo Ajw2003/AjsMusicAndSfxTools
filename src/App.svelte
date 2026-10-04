@@ -1,6 +1,7 @@
 <script lang="ts">
   import { onMount } from "svelte";
   import ChordBuilder from "./components/ChordBuilder.svelte";
+  import ChordPads from "./components/ChordPads.svelte";
   import ClipInspector from "./components/ClipInspector.svelte";
   import Keyboard from "./components/Keyboard.svelte";
   import SongFileBar from "./components/SongFileBar.svelte";
@@ -17,6 +18,7 @@
     createNoteClip,
     createTrack,
     findClip,
+    type ChordPad,
     type Clip,
     type LoopRegion,
     type Note,
@@ -69,6 +71,7 @@
   /** The copied clip (a deep copy), pasted with a fresh id. */
   let clipboard = $state<Clip | null>(null);
   let isChordBuilderOpen = $state(false);
+  let heldPadIds = $state<string[]>([]);
   let isPhone = $state(false);
 
   const recorder = new TakeRecorder();
@@ -588,7 +591,51 @@
     engine.setMasterVolumeDb(masterDb);
   }
 
+  // ---- Chord pads ----
+
+  // A pad is the whole chord on the keyboard path, so it plays on the
+  // selected track and records like notes.
+  function onPadDown(pad: ChordPad): void {
+    if (heldPadIds.includes(pad.id)) return;
+    heldPadIds = [...heldPadIds, pad.id];
+    for (const pitch of pad.pitches) onNoteOn(pitch, 0.8);
+  }
+
+  function onPadUp(pad: ChordPad): void {
+    if (!heldPadIds.includes(pad.id)) return;
+    heldPadIds = heldPadIds.filter((id) => id !== pad.id);
+    for (const pitch of pad.pitches) onNoteOff(pitch);
+  }
+
+  function releaseAllPads(): void {
+    for (const pad of history.song.chordPads) onPadUp(pad);
+  }
+
+  function onRemovePad(pad: ChordPad): void {
+    onPadUp(pad);
+    history.apply({
+      type: "setChordPads",
+      pads: history.song.chordPads.filter((p) => p.id !== pad.id),
+    });
+  }
+
+  function padForKey(e: KeyboardEvent): ChordPad | undefined {
+    if (e.ctrlKey || e.metaKey || e.altKey || isTyping(e.target)) return;
+    return history.song.chordPads.find((p) => p.keyCode === e.code);
+  }
+
+  function onWindowKeyup(e: KeyboardEvent): void {
+    const pad = padForKey(e);
+    if (pad) onPadUp(pad);
+  }
+
   function onWindowKeydown(e: KeyboardEvent): void {
+    const pad = padForKey(e);
+    if (pad) {
+      e.preventDefault();
+      if (!e.repeat) onPadDown(pad);
+      return;
+    }
     if (e.altKey || isTyping(e.target)) return;
     const isCtrl = e.ctrlKey || e.metaKey;
     if (!isCtrl) {
@@ -620,7 +667,12 @@
   }
 </script>
 
-<svelte:window onkeydown={onWindowKeydown} onpagehide={flushSave} />
+<svelte:window
+  onkeydown={onWindowKeydown}
+  onkeyup={onWindowKeyup}
+  onblur={releaseAllPads}
+  onpagehide={flushSave}
+/>
 <svelte:document
   onvisibilitychange={() => {
     if (document.visibilityState === "hidden") flushSave();
@@ -752,6 +804,15 @@
   <SongFileBar {song} {onReplace} />
 
   <div class="dock">
+    {#if song.chordPads.length > 0}
+      <ChordPads
+        pads={song.chordPads}
+        heldIds={heldPadIds}
+        {onPadDown}
+        {onPadUp}
+        onRemove={onRemovePad}
+      />
+    {/if}
     <Keyboard
       {onNoteOn}
       {onNoteOff}
@@ -821,6 +882,9 @@
     padding: 0.75rem 1rem calc(0.75rem + env(safe-area-inset-bottom));
     background: var(--color-bg);
     border-top: 1px solid var(--color-border);
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
   }
   @media (max-width: 600px) {
     main {

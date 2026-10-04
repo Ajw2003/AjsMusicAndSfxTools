@@ -509,6 +509,81 @@ async function chordBuilderClip(browser) {
   await context.close();
 }
 
+async function chordPads(browser) {
+  const { context, page } = await start(browser, {
+    width: 1280,
+    height: 800,
+  });
+  await openSong(
+    page,
+    songFile(240, [clip("A", 0, 16, 16, [])]),
+    "pads.ajsong.json",
+  );
+  await page.getByRole("button", { name: /Chord builder/ }).click();
+  const builder = page.getByRole("region", { name: "Chord builder" });
+  await builder
+    .getByLabel("Start from")
+    .selectOption({ label: "I–V–vi–IV (pop)" });
+  for (const name of ["C", "G", "Am", "F"]) {
+    await builder
+      .getByRole("button", { name: `Save ${name} as a chord pad` })
+      .click();
+  }
+  const pads = page.getByRole("region", { name: "Chord pads" });
+  const padNames = async () =>
+    pads
+      .getByRole("button", { name: /^Play / })
+      .evaluateAll((els) => els.map((el) => el.getAttribute("aria-label")));
+  check(
+    "saved chords become pads on keys 1–4",
+    (await padNames()).join(" | ") ===
+      "Play C, key 1 | Play G, key 2 | Play Am, key 3 | Play F, key 4",
+    (await padNames()).join(" | "),
+  );
+
+  // Record the four pads by number key into clip A (16 beats = 4 s).
+  await page.locator('[data-clip-id="A"]').click();
+  await page.getByRole("button", { name: "Record" }).click();
+  await page.waitForTimeout(1000 + 200);
+  for (const key of ["Digit1", "Digit2", "Digit3", "Digit4"]) {
+    await page.keyboard.down(key);
+    await page.waitForTimeout(300);
+    await page.keyboard.up(key);
+    await page.waitForTimeout(500);
+  }
+  await page.waitForTimeout(1200); // past the wrap: the pass is committed
+  await page.getByRole("button", { name: "Record" }).click();
+  await page.getByRole("button", { name: "Pause" }).click();
+  const saved = await savedSong(page);
+  const notes = saved.tracks[0].clips[0].content.notes;
+  const chordsHeard = [];
+  for (const n of [...notes].sort((a, b) => a.startBeat - b.startBeat)) {
+    const last = chordsHeard.at(-1);
+    if (last && Math.abs(n.startBeat - last.at) < 0.3)
+      last.pitches.push(n.pitch);
+    else chordsHeard.push({ at: n.startBeat, pitches: [n.pitch] });
+  }
+  const shapes = chordsHeard.map((c) =>
+    c.pitches.sort((a, b) => a - b).join(","),
+  );
+  check(
+    "pads played by number keys record as chords",
+    shapes.join(" | ") === "48,52,55 | 55,59,62 | 57,60,64 | 53,57,60",
+    shapes.join(" | "),
+  );
+
+  await page.reload();
+  await page.getByRole("button", { name: /press any key to start/i }).click();
+  check(
+    "pads are still there after a reload",
+    (await padNames()).length === 4,
+    (await padNames()).join(" | "),
+  );
+  await pads.getByRole("button", { name: "Remove pad F" }).click();
+  check("a pad can be removed", (await padNames()).length === 3);
+  await context.close();
+}
+
 /** Press Tab until `matches` is true for the focused element (no mouse). */
 async function tabTo(page, description, matches) {
   for (let i = 0; i < 80; i++) {
@@ -722,6 +797,7 @@ async function startPreview() {
     await keyboardOnlyClipEdits(browser);
     await touchDrags(browser);
     await chordBuilderClip(browser);
+    await chordPads(browser);
     await stretchedClipRepeats(browser);
     await loopRegion(browser);
     await wavCoversSong(browser);
