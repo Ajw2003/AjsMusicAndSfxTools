@@ -8,6 +8,7 @@
 // It prints one PASS/FAIL line per check and exits non-zero on any failure.
 
 const { chromium } = require("playwright");
+const { AxeBuilder } = require("@axe-core/playwright");
 const fs = require("node:fs");
 const os = require("node:os");
 const path = require("node:path");
@@ -1314,6 +1315,120 @@ async function noLayoutJumps(browser) {
 }
 
 /** Serve the built app (dist/) with Vite's preview server. */
+const AXE_TAGS = ["wcag2a", "wcag2aa", "wcag21a", "wcag21aa", "wcag22aa"];
+
+/** One PASS/FAIL per screen: serious or critical axe violations fail it. */
+async function axeScan(page, name) {
+  const { violations } = await new AxeBuilder({ page })
+    .withTags(AXE_TAGS)
+    .analyze();
+  const bad = violations.filter(
+    (v) => v.impact === "serious" || v.impact === "critical",
+  );
+  const count = (impact) =>
+    violations.filter((v) => v.impact === impact).length;
+  check(
+    `axe: ${name}`,
+    bad.length === 0,
+    `serious ${count("serious")}, critical ${count("critical")}, ` +
+      `moderate ${count("moderate")}, minor ${count("minor")}`,
+  );
+  console.log(
+    `AXE ${name} | serious ${count("serious")} | critical ${count("critical")} | moderate ${count("moderate")} | minor ${count("minor")}`,
+  );
+  for (const v of violations) {
+    const targets = v.nodes.map((n) => n.target.join(" ")).join("; ");
+    console.log(
+      `  ${bad.includes(v) ? "VIOLATION" : "note"} [${v.impact}] ${v.id}: ${v.help} -> ${targets}`,
+    );
+  }
+}
+
+/** Accessibility scan (#90) of every screen, desktop and phone. */
+async function accessibilityScan(browser) {
+  for (const viewport of VIEWPORTS) {
+    const w = viewport.name;
+    const scan = (page, name) => axeScan(page, `${w} ${name}`);
+
+    // Start overlay: before the first key press.
+    {
+      const context = await browser.newContext({ viewport });
+      const page = await context.newPage();
+      await page.goto(URL);
+      await page
+        .getByRole("button", { name: /press any key to start/i })
+        .waitFor();
+      await scan(page, "start overlay");
+      await context.close();
+    }
+
+    // First screen (the timeline hint is showing), then each panel.
+    {
+      const { context, page } = await start(browser, viewport);
+      await scan(page, "first screen");
+      await scan(page, "first-time hint");
+      await page
+        .locator('[data-hint="timeline"]')
+        .getByRole("button", { name: "Got it" })
+        .click();
+      await openSong(
+        page,
+        songFile(80, [clip("A", 0, 16, 16, [note("n1", 60, 0)])]),
+        "axe.ajsong.json",
+      );
+      await page.locator("[data-clip-id]").first().click();
+      for (const label of [
+        "Track",
+        "Clip",
+        "Chord builder",
+        "Recording",
+        "Timeline",
+        "Song",
+        "Reading",
+        "Save & export",
+      ]) {
+        await openPanel(page, label);
+        await scan(page, `${label} panel`);
+      }
+
+      // Recording: the count-in, then the bar.
+      await page.getByRole("button", { name: "Record", exact: true }).click();
+      await page.getByTestId("count-in").waitFor();
+      await scan(page, "count-in");
+      await page.locator(".rec-bar").waitFor();
+      await page.getByTestId("count-in").waitFor({ state: "detached" });
+      await scan(page, "recording bar");
+      await page.getByRole("button", { name: "Record", exact: true }).click();
+      await page.waitForTimeout(150);
+
+      // The Deleted/Undo message.
+      await page.locator("[data-clip-id]").first().click();
+      await page.getByRole("button", { name: "Delete clip" }).click();
+      await page.locator(".deleted").waitFor();
+      await scan(page, "deleted message");
+      await context.close();
+    }
+
+    // Reading set to OpenDyslexic + Larger + Relaxed.
+    {
+      const { context, page } = await start(browser, viewport);
+      await openPanel(page, "Reading");
+      for (const [group, label] of [
+        ["Font", "OpenDyslexic"],
+        ["Text size", "Larger"],
+        ["Spacing", "Relaxed"],
+      ]) {
+        await page
+          .getByRole("group", { name: group })
+          .getByLabel(label, { exact: true })
+          .check();
+      }
+      await scan(page, "OpenDyslexic, Larger, Relaxed");
+      await context.close();
+    }
+  }
+}
+
 async function startPreview() {
   const { preview } = await import("vite");
   const server = await preview({ preview: { port: 4173, open: false } });
@@ -1348,6 +1463,7 @@ async function startPreview() {
     await phone64Bars(browser);
     await readingSettings(browser);
     await focusAids(browser);
+    await accessibilityScan(browser);
   } finally {
     await browser.close();
     await preview?.server.close();

@@ -16,6 +16,7 @@
     "test:e2e": "vite build && node e2e/timeline.cjs"
   },
   "devDependencies": {
+    "@axe-core/playwright": "4.13.0",
     "@eslint/js": "10.0.1",
     "@sveltejs/vite-plugin-svelte": "7.3.0",
     "@tsconfig/svelte": "5.0.8",
