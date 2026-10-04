@@ -64,6 +64,10 @@
 
   let isPlaying = $state(false);
   let isCountingIn = $state(false);
+  let countNumber = $state<number | null>(null);
+  /** What was just deleted, so Undo can sit right where the mistake was. */
+  let deleted = $state<string | null>(null);
+  let undoButton = $state<HTMLButtonElement | undefined>();
   let isRecording = $state(false);
   let beat = $state(0);
   let metronomeOn = $state(false);
@@ -72,7 +76,7 @@
   let newClipBars = $state(4);
   let selectedClipId = $state<string | null>(null);
   /** Where recorded notes go, and the span the transport loops while recording. */
-  let recordTargetNow: RecordTarget | null = null;
+  let recordTargetNow = $state<RecordTarget | null>(null);
   let recordRegion: LoopRegion | null = null;
   /** The copied clip (a deep copy), pasted with a fresh id. */
   let clipboard = $state<Clip | null>(null);
@@ -102,12 +106,16 @@
   const PANEL_KEY = "ajs-music.ui.panel";
   const KEYBOARD_KEY = "ajs-music.ui.keyboard-hidden";
   const TIPS_KEY = "ajs-music.ui.tips-hidden";
+  const HINT_CHORDS_KEY = "ajs-music.ui.hint-chords-done";
+  const HINT_TIMELINE_KEY = "ajs-music.ui.hint-timeline-done";
 
   const savedPanel = loadUi(PANEL_KEY);
   let openPanel = $state<PanelId | null>(
     PANELS.some((p) => p.id === savedPanel) ? (savedPanel as PanelId) : null,
   );
   let isTipsHidden = $state(loadUi(TIPS_KEY) === "true");
+  let isChordHintDone = $state(loadUi(HINT_CHORDS_KEY) === "true");
+  let isTimelineHintDone = $state(loadUi(HINT_TIMELINE_KEY) === "true");
   let isKeyboardHidden = $state(loadUi(KEYBOARD_KEY) === "true");
 
   /**
@@ -156,6 +164,15 @@
   const inspected = $derived(
     selectedClipId ? (findClip(song, selectedClipId) ?? null) : null,
   );
+  const recordingInto = $derived.by(() => {
+    const target = recordTargetNow;
+    if (!isRecording || !target) return null;
+    if (target.kind === "clip") {
+      return findClip(song, target.clipId)?.clip.name ?? selected.name;
+    }
+    const trackId = target.trackId;
+    return song.tracks.find((t) => t.id === trackId)?.name ?? selected.name;
+  });
   const isDrums = $derived(selected.sound === "noise");
 
   // Kick (below C4) must be reachable on drum tracks, so they start at C3.
@@ -181,6 +198,7 @@
   let isFirstSubscribe = true;
   history.subscribe((s) => {
     song = s;
+    deleted = null; // any other change replaces the message
     canUndo = history.canUndo;
     canRedo = history.canRedo;
     if (!s.tracks.some((t) => t.id === selectedId)) {
@@ -388,6 +406,30 @@
     }
     history.apply({ type: "removeClip", clipId: clip.id });
     selectedClipId = null;
+    void announceDeleted(clip.name);
+  }
+
+  /** Show "Deleted X. Undo" and move focus into it, so it is never lost. */
+  async function announceDeleted(name: string): Promise<void> {
+    deleted = name;
+    await afterRender();
+    undoButton?.focus();
+  }
+
+  function dismissDeleted(): void {
+    deleted = null;
+    focusTransport();
+  }
+
+  function undoDeleted(): void {
+    onUndo();
+    focusTransport();
+  }
+
+  function focusTransport(): void {
+    void afterRender().then(() =>
+      document.querySelector<HTMLElement>(".transport button")?.focus(),
+    );
   }
 
   // ---- Chord builder ----
@@ -582,6 +624,8 @@
     const counting = engine.isCountingIn;
     if (playing !== isPlaying) isPlaying = playing;
     if (counting !== isCountingIn) isCountingIn = counting;
+    const n = counting ? engine.countInNumber : null;
+    if (n !== countNumber) countNumber = n;
     const b = engine.currentBeat();
     if (b !== beat) beat = b;
     if (!playing) {
@@ -643,7 +687,9 @@
   function onRemove(id: string): void {
     if (id === selectedId) endRecording();
     engine.releaseAll();
+    const name = history.song.tracks.find((t) => t.id === id)?.name;
     history.apply({ type: "removeTrack", trackId: id });
+    if (name !== undefined) void announceDeleted(name);
   }
 
   function onReplace(next: Song): void {
@@ -773,7 +819,22 @@
 
 <StartOverlay {onStarted} />
 
+{#if countNumber !== null}
+  <div class="count-in" aria-hidden="true" data-testid="count-in">
+    {countNumber}
+  </div>
+{/if}
+
 <main>
+  <!-- Space is always reserved, so the bar appearing never moves the page. -->
+  <div class="rec-slot">
+    {#if recordingInto !== null}
+      <div class="rec-bar" role="status">
+        <span class="rec-dot" aria-hidden="true"></span>
+        Recording into {recordingInto} — press Record to stop
+      </div>
+    {/if}
+  </div>
   <header>
     <h1>AJ's Music & SFX Tools</h1>
     {#if !isTipsHidden}
@@ -834,6 +895,33 @@
     {onToggleTrackSettings}
   />
 
+  {#if !isTimelineHintDone}
+    <div class="hint" data-hint="timeline">
+      <p>
+        Click the ruler or a lane to move the playhead. Drag a clip to move it.
+      </p>
+      <button
+        type="button"
+        onclick={() => {
+          isTimelineHintDone = true;
+          saveUi(HINT_TIMELINE_KEY, "true");
+        }}>Got it</button
+      >
+    </div>
+  {/if}
+
+  {#if deleted !== null}
+    <div class="deleted" role="status">
+      <span>Deleted {deleted}.</span>
+      <button type="button" bind:this={undoButton} onclick={undoDeleted}
+        >Undo</button
+      >
+      <button type="button" aria-label="Dismiss" onclick={dismissDeleted}
+        >×</button
+      >
+    </div>
+  {/if}
+
   <nav class="panel-tabs" aria-label="Panels">
     {#each PANELS as p (p.id)}
       <button
@@ -880,6 +968,21 @@
         </p>
       {/if}
     {:else if openPanel === "chords"}
+      {#if !isChordHintDone}
+        <div class="hint" data-hint="chords">
+          <p>
+            Pick a key, tap chords to add them, then make them into a clip on
+            the selected track.
+          </p>
+          <button
+            type="button"
+            onclick={() => {
+              isChordHintDone = true;
+              saveUi(HINT_CHORDS_KEY, "true");
+            }}>Got it</button
+          >
+        </div>
+      {/if}
       <ChordBuilder
         trackName={selected.kind === "notes" ? selected.name : null}
         beatsPerBar={song.beatsPerBar}
@@ -1027,6 +1130,83 @@
     align-self: flex-start;
     min-height: 2.25rem;
     font-size: 0.9rem;
+  }
+  .rec-slot {
+    min-height: 2.5rem;
+    margin: -0.5rem 0 0;
+  }
+  .rec-bar {
+    position: sticky;
+    top: 0;
+    z-index: 20;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.6rem;
+    min-height: 2.5rem;
+    padding: 0.25rem 1rem;
+    box-sizing: border-box;
+    font-size: 1.1rem;
+    font-weight: 600;
+    color: #ffffff;
+    background: #b00020;
+    border-bottom: 2px solid #ffffff;
+  }
+  .rec-dot {
+    flex: none;
+    width: 0.85rem;
+    height: 0.85rem;
+    border-radius: 50%;
+    background: #ffffff;
+  }
+  .count-in {
+    position: fixed;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    z-index: 15;
+    pointer-events: none;
+    min-width: 1.6em;
+    text-align: center;
+    font-size: 8rem;
+    font-weight: 700;
+    line-height: 1.2;
+    font-variant-numeric: tabular-nums;
+    color: var(--color-text);
+    background: var(--color-bg);
+    border: 4px solid var(--color-error);
+    border-radius: 1rem;
+    opacity: 0.95;
+  }
+  .hint,
+  .deleted {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.5rem 0.75rem;
+    padding: 0.5rem 0.75rem;
+    background: var(--color-surface);
+    border: 1px solid var(--color-border);
+    border-radius: 0.5rem;
+  }
+  .hint p {
+    margin: 0;
+    flex: 1 1 14rem;
+  }
+  .deleted span {
+    flex: 1 1 auto;
+  }
+  .hint button,
+  .deleted button {
+    font: inherit;
+    min-height: 2.75rem;
+    min-width: 2.75rem;
+    padding: 0.25rem 0.9rem;
+    color: var(--color-text);
+    background: var(--color-bg);
+    border: 1px solid var(--color-border);
+    border-radius: 0.5rem;
+    cursor: pointer;
   }
   .hint-only {
     color: var(--color-muted);

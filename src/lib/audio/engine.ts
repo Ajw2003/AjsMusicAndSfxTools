@@ -1,6 +1,7 @@
 // The ONLY file in the app that imports Tone.js.
 import * as Tone from "tone";
 import { getPreset, type ChiptunePreset } from "./chiptune";
+import { countInNumber } from "../song/count-in";
 import { drumKind } from "./drums";
 import { encodeWav } from "./wav";
 import {
@@ -235,6 +236,9 @@ export class AudioEngine {
   #click: Tone.Synth | null = null;
   /** Audio time at which a pending count-in ends (0 = none). */
   #countInEnd = 0;
+  #countInStart = 0;
+  #countInBeats = 0;
+  #countInSpb = 0;
   #beatsPerBar = 4;
 
   get isStarted(): boolean {
@@ -487,12 +491,26 @@ export class AudioEngine {
       );
     }
     this.#countInEnd = t0 + beats * spb;
+    this.#countInStart = t0;
+    this.#countInBeats = beats;
+    this.#countInSpb = spb;
     Tone.getTransport().start(this.#countInEnd);
   }
 
   /** True between playWithCountIn() and the moment playback starts. */
   get isCountingIn(): boolean {
     return this.#countInEnd > 0 && Tone.now() < this.#countInEnd;
+  }
+
+  /** The number to show now (4, 3, 2, 1), from the audio clock; null if none. */
+  get countInNumber(): number | null {
+    if (this.#countInEnd === 0) return null;
+    return countInNumber(
+      Tone.now(),
+      this.#countInStart,
+      this.#countInSpb,
+      this.#countInBeats,
+    );
   }
 
   /** Stop (cancelling any count-in) and leave the playhead at `beat`. */

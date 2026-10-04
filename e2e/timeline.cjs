@@ -1076,6 +1076,243 @@ async function readingSettings(browser) {
   }
 }
 
+/** Document-space top of an element, so scrolling does not count as a move. */
+const pageTop = (page, selector) =>
+  page.evaluate(
+    (sel) => document.querySelector(sel).getBoundingClientRect().top + scrollY,
+    selector,
+  );
+
+const VIEWPORTS = [
+  { name: "desktop", width: 1280, height: 800 },
+  { name: "phone", width: 390, height: 800 },
+];
+
+async function focusAids(browser) {
+  for (const viewport of VIEWPORTS) {
+    const where = viewport.name;
+    const { context, page } = await start(browser, viewport);
+    const bar = page.locator(".rec-bar");
+    const countIn = page.getByTestId("count-in");
+
+    // Recording bar and the large count-in.
+    await openSong(
+      page,
+      songFile(80, [clip("A", 0, 16, 16, [])]),
+      "focus.ajsong.json",
+    );
+    await page.locator("[data-clip-id]").first().click();
+    check(`${where}: no recording bar before recording`, !(await bar.count()));
+    await page.getByRole("button", { name: "Record", exact: true }).click();
+    const seen = [];
+    const seenAt = Date.now();
+    let barText = "";
+    while (Date.now() - seenAt < 3600) {
+      if (await countIn.count()) {
+        const n = (await countIn.textContent()).trim();
+        if (seen[seen.length - 1] !== n) seen.push(n);
+      }
+      if (!barText && (await bar.count())) barText = await bar.textContent();
+      await page.waitForTimeout(30);
+    }
+    check(
+      `${where}: count-in shows 4, 3, 2, 1`,
+      seen.join(",") === "4,3,2,1",
+      seen.join(","),
+    );
+    check(
+      `${where}: bar says what is being recorded into`,
+      /Recording into A — press Record to stop/.test(
+        barText.replace(/\s+/g, " "),
+      ),
+      barText.trim(),
+    );
+    check(
+      `${where}: the bar is a status`,
+      (await bar.getAttribute("role")) === "status",
+    );
+    check(`${where}: the count-in is gone after it`, !(await countIn.count()));
+    check(`${where}: bar stays while recording`, (await bar.count()) === 1);
+    await page.evaluate(() => scrollTo(0, 0));
+    const box = await bar.boundingBox();
+    const transport = await page.locator(".transport").boundingBox();
+    check(
+      `${where}: bar does not cover the transport controls`,
+      box.y + box.height <= transport.y + 0.5,
+      `bar bottom ${box.y + box.height}, transport top ${transport.y}`,
+    );
+    await page.getByRole("button", { name: "Record", exact: true }).click();
+    await page.waitForTimeout(150);
+    check(`${where}: bar is gone after stopping`, !(await bar.count()));
+    await page.getByRole("button", { name: "Back to start" }).click();
+
+    // Deleting a clip, with Undo in the message.
+    const clips = page.locator("[data-clip-id]");
+    const message = page.locator(".deleted");
+    await page.locator("[data-clip-id]").first().click();
+    await page.getByRole("button", { name: "Delete clip" }).click();
+    check(`${where}: delete clip removes it`, (await clips.count()) === 0);
+    check(
+      `${where}: message says Deleted A.`,
+      (await message.textContent()).includes("Deleted A."),
+    );
+    check(
+      `${where}: focus goes to the message's Undo`,
+      await page.evaluate(
+        () =>
+          document.activeElement?.textContent?.trim() === "Undo" &&
+          !!document.activeElement.closest(".deleted"),
+      ),
+    );
+    await message.getByRole("button", { name: "Undo" }).click();
+    check(
+      `${where}: Undo in the message restores the clip`,
+      (await clips.count()) === 1,
+    );
+    check(`${where}: the message goes after Undo`, !(await message.count()));
+    check(
+      `${where}: focus is not lost to the page`,
+      await page.evaluate(() => document.activeElement !== document.body),
+    );
+
+    // Dismiss, with the keyboard.
+    await page.locator("[data-clip-id]").first().click();
+    await page.getByRole("button", { name: "Delete clip" }).click();
+    await message.getByRole("button", { name: "Dismiss" }).click();
+    check(`${where}: Dismiss removes the message`, !(await message.count()));
+    check(
+      `${where}: Dismiss does not bring the clip back`,
+      (await clips.count()) === 0,
+    );
+    await page.keyboard.press("Control+KeyZ");
+    check(`${where}: main Undo still restores it`, (await clips.count()) === 1);
+
+    // Deleting a track.
+    await context.close();
+  }
+  await focusAidsTrack(browser);
+  await firstTimeHints(browser);
+  await noLayoutJumps(browser);
+}
+
+async function focusAidsTrack(browser) {
+  for (const viewport of VIEWPORTS) {
+    const where = viewport.name;
+    const { context, page } = await start(browser, viewport);
+    await openSong(
+      page,
+      songFile(120, [clip("A", 0, 8, 8, [])], null, [track("t2", "Bass", [])]),
+      "focus2.ajsong.json",
+    );
+    const lanes = () => page.locator("[data-track-id]").count();
+    const before = await lanes();
+    await openPanel(page, "Track");
+    await page.getByRole("button", { name: "Delete Lead" }).click();
+    const message = page.locator(".deleted");
+    check(
+      `${where}: delete track shows its message`,
+      (await message.textContent()).includes("Deleted Lead."),
+    );
+    check(
+      `${where}: a track is gone`,
+      (await lanes()) === before - 1,
+      `${before} -> ${await lanes()}`,
+    );
+    check(
+      `${where}: focus is in the message`,
+      await page.evaluate(() => !!document.activeElement?.closest(".deleted")),
+    );
+    await message.getByRole("button", { name: "Undo" }).click();
+    check(`${where}: Undo restores the track`, (await lanes()) === before);
+    check(
+      `${where}: the track message goes after Undo`,
+      !(await message.count()),
+    );
+    await context.close();
+  }
+}
+
+async function firstTimeHints(browser) {
+  for (const viewport of VIEWPORTS) {
+    const where = viewport.name;
+    const { context, page } = await start(browser, viewport);
+    const timelineHint = page.locator('[data-hint="timeline"]');
+    const chordHint = page.locator('[data-hint="chords"]');
+    check(
+      `${where}: timeline hint shows the first time`,
+      (await timelineHint.count()) === 1,
+    );
+    check(
+      `${where}: chord hint waits for the panel`,
+      (await chordHint.count()) === 0,
+    );
+    await openPanel(page, "Chord builder");
+    check(
+      `${where}: chord hint shows the first time`,
+      (await chordHint.count()) === 1,
+    );
+    await chordHint.getByRole("button", { name: "Got it" }).click();
+    check(
+      `${where}: Got it hides the chord hint`,
+      (await chordHint.count()) === 0,
+    );
+    await page.reload();
+    await page.getByRole("button", { name: /press any key to start/i }).click();
+    await page.waitForTimeout(300);
+    await openPanel(page, "Chord builder");
+    check(
+      `${where}: chord hint stays gone after a reload`,
+      (await chordHint.count()) === 0,
+    );
+    check(
+      `${where}: timeline hint still shows (not dismissed)`,
+      (await timelineHint.count()) === 1,
+    );
+    await timelineHint.getByRole("button", { name: "Got it" }).click();
+    await page.reload();
+    await page.getByRole("button", { name: /press any key to start/i }).click();
+    await page.waitForTimeout(300);
+    check(
+      `${where}: timeline hint stays gone after a reload`,
+      (await timelineHint.count()) === 0,
+    );
+    await context.close();
+  }
+}
+
+async function noLayoutJumps(browser) {
+  for (const viewport of VIEWPORTS) {
+    const where = viewport.name;
+    const { context, page } = await start(browser, viewport);
+    const spots = async () => [
+      await pageTop(page, ".transport"),
+      await pageTop(page, ".timeline"),
+    ];
+    const first = await spots();
+    let same = true;
+    for (const label of [
+      "Track",
+      "Clip",
+      "Chord builder",
+      "Recording",
+      "Timeline",
+      "Song",
+      "Reading",
+      "Save & export",
+    ]) {
+      await openPanel(page, label);
+      const now = await spots();
+      if (now[0] !== first[0] || now[1] !== first[1]) same = false;
+    }
+    check(
+      `${where}: switching panels does not move the top bar or timeline`,
+      same,
+      `${first} -> ${await spots()}`,
+    );
+    await context.close();
+  }
+}
+
 /** Serve the built app (dist/) with Vite's preview server. */
 async function startPreview() {
   const { preview } = await import("vite");
@@ -1110,6 +1347,7 @@ async function startPreview() {
     await wavCoversSong(browser);
     await phone64Bars(browser);
     await readingSettings(browser);
+    await focusAids(browser);
   } finally {
     await browser.close();
     await preview?.server.close();
