@@ -1,6 +1,6 @@
 # Project state (tier 3): where it stands right now
 
-**As of 2026-10-03. Overall: about 20% of 100%. M0 built; a chiptune song prototype (#68) covers
+**As of 2026-10-04. Overall: about 20% of 100%. M0 built; a chiptune song prototype (#68) covers
 most of M1 and parts of M2, M5, M6 and M7 but no milestone is fully done.**
 
 M0 is built: docs, issues, an empty app that builds, code checks and CI, which passed on GitHub on
@@ -14,7 +14,7 @@ projects and download a WAV. Checked by a headless-browser run (21/21 checks, de
 | M1: Playable keyboard | 10% | Mostly built (latency #15 not measured; owner test pending) | #6 |
 | M2: Instruments | 15% | Chiptune only (#25); no samples | #16 |
 | M3: Customising sounds and keys | 10% | Not started | #28 |
-| M4: Themes and accessibility | 10% | Not started | #34 |
+| M4: Themes and accessibility | 10% | Usability pass #84 built (reading settings, axe scan); themes, modes not started | #34 |
 | M5: Record and loop | 10% | Mostly built (loop mode, undo, autosave, metronome, quantize) | #42 |
 | M6: Save and export | 10% | Project files + WAV built; MP3/OGG, MIDI, options not | #51 |
 | M7: Piano roll and step sequencer | 10% | Read-only loop view only | #57 |
@@ -83,10 +83,17 @@ Plan: `docs/plans/arranger-timeline.md`. Handoff detail: `docs/5-today/Today.md`
   0.0 ms after the press instead of 20 ms or more. See Decisions, 2026-10-04.
 - **Not started:** #79–#82.
 - **Next UI pass, in progress:** #84 (dyslexia and ADHD usability), steps #86–#90, owner-approved
-  2026-10-04 and scheduled before phase C. On the branch, not merged: press-and-drag scrubbing on the
-  timeline (owner's request; drags no longer select text) and step 1, the calmer layout (#86).
-  `npm run test:e2e` 77/77, twice. Already noted for it: on a phone the
-  chord builder's per-chord buttons wrap untidily, and chord pads make the keyboard dock taller.
+  2026-10-04 and scheduled before phase C. Scrubbing and step 1 (#86) merged in PR #91.
+- **Usability steps 2–5 built 2026-10-04, on branch `claude/modest-mendel-kfiuw7`, not merged:** plain words on
+  every label (#87); a Reading panel with four bundled fonts, three text sizes and Relaxed spacing, saved in the
+  browser, no text under 14 px (#88); a red recording bar, a large 4-3-2-1 count-in, a "Deleted … Undo" message
+  and first-time hints (#89); an axe accessibility scan of 14 screens at desktop and phone width in the browser
+  checks (#90). Checked: format, lint, types, 128 unit tests, `npm run test:e2e` 189/189 ("ALL PASS"), run at
+  least twice per step; axe reports 0 issues of any level on every scanned screen. Screenshots and the axe table:
+  `docs/generated/usability/README.md`.
+- **Not checked:** a try-out by someone with dyslexia or ADHD (the owner); a real screen reader; heard by a
+  person. Known rough edges: the count-in number briefly covers the timeline; black-key labels stack
+  ("G" over "#") with OpenDyslexic + Larger + Relaxed on a phone; track and master volume show a bare number.
 
 ## The one thing that is not what it looks like
 

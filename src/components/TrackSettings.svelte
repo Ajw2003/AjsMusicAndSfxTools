@@ -69,13 +69,14 @@
       max="6"
       step="1"
       value={track.volumeDb}
+      aria-valuetext="{dragDb ?? track.volumeDb} decibels"
       oninput={(e) => (dragDb = Number(e.currentTarget.value))}
       onchange={(e) => {
         dragDb = null;
         onUpdate({ volumeDb: Number(e.currentTarget.value) });
       }}
     />
-    <output>{dragDb ?? track.volumeDb} dB</output>
+    <output>{dragDb ?? track.volumeDb}</output>
   </label>
   <button
     type="button"

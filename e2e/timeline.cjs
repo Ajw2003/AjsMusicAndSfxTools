@@ -8,6 +8,7 @@
 // It prints one PASS/FAIL line per check and exits non-zero on any failure.
 
 const { chromium } = require("playwright");
+const { AxeBuilder } = require("@axe-core/playwright");
 const fs = require("node:fs");
 const os = require("node:os");
 const path = require("node:path");
@@ -106,7 +107,7 @@ async function openSong(page, json, name) {
 }
 
 const position = (page) => page.getByLabel("Position").textContent();
-const bpmInput = (page) => page.getByLabel("BPM");
+const bpmInput = (page) => page.getByLabel("Tempo (beats per minute)");
 
 async function setBpm(page, bpm) {
   await openPanel(page, "Song");
@@ -397,17 +398,17 @@ async function dragClips(browser) {
   await undo();
 
   await openPanel(page, "Timeline");
-  await page.getByLabel("Snap").selectOption({ label: "Bar" });
+  await page.getByLabel("Line clips up to:").selectOption({ label: "Bars" });
   await dragBy(page, "A", "move", 2.6);
   g = await geometry(page, "A");
   check("bar snap lands on a bar", g.start === 8, at(g));
   await undo();
-  await page.getByLabel("Snap").selectOption({ label: "Off" });
+  await page.getByLabel("Line clips up to:").selectOption({ label: "Nothing" });
   await dragBy(page, "A", "move", 1.5);
   g = await geometry(page, "A");
   check("snap off moves freely", Math.abs(g.start - 5.5) < 0.05, at(g));
   await undo();
-  await page.getByLabel("Snap").selectOption({ label: "Beat" });
+  await page.getByLabel("Line clips up to:").selectOption({ label: "Beats" });
 
   const laneHeight = await page
     .locator('[data-track-id="t2"]')
@@ -812,10 +813,13 @@ async function keyboardOnlyClipEdits(browser) {
   await typeInto("Name", "Hook");
   await typeInto("Start bar", 3);
   await typeInto("Beat", 2);
-  await typeInto("Length (beats)", 8);
-  await typeInto("Loop length (beats)", 2);
-  await typeInto("Transpose (semitones)", 12);
-  await typeInto("Volume (dB)", -6);
+  await typeInto("Length", 8);
+  await typeInto("Repeats every", 2);
+  await typeInto("Higher / lower (steps)", 12);
+  await page
+    .getByRole("region", { name: /^Clip / })
+    .getByRole("slider", { name: "Volume" })
+    .fill("-6");
   let saved = await savedSong(page);
   const c = saved.tracks[0].clips[0];
   check(
@@ -939,7 +943,492 @@ async function touchDrags(browser) {
   await context.close();
 }
 
+/** Reading settings (#88): fonts, text size, spacing, saved, nothing under 14px. */
+async function readingSettings(browser) {
+  const bodyStyle = (page) =>
+    page.evaluate(() => {
+      const s = getComputedStyle(document.body);
+      return {
+        family: s.fontFamily,
+        size: parseFloat(s.fontSize),
+        line: parseFloat(s.lineHeight),
+      };
+    });
+  const choose = async (page, group, label) => {
+    await openPanel(page, "Reading");
+    await page
+      .getByRole("group", { name: group })
+      .getByLabel(label, { exact: true })
+      .check();
+  };
+  const smallText = (page) =>
+    page.evaluate(() => {
+      const found = new Set();
+      const walker = document.createTreeWalker(
+        document.body,
+        NodeFilter.SHOW_TEXT,
+      );
+      while (walker.nextNode()) {
+        const node = walker.currentNode;
+        if (!node.textContent.trim()) continue;
+        const el = node.parentElement;
+        const r = el.getBoundingClientRect();
+        const s = getComputedStyle(el);
+        if (r.width === 0 || r.height === 0 || s.visibility === "hidden") {
+          continue;
+        }
+        if (parseFloat(s.fontSize) < 14) {
+          found.add(`${el.tagName}.${el.className}:${s.fontSize}`);
+        }
+      }
+      return [...found];
+    });
+
+  for (const viewport of [
+    { width: 1280, height: 800 },
+    { width: 390, height: 844 },
+  ]) {
+    const where = `${viewport.width}px`;
+    const { context, page } = await start(browser, viewport);
+    const normal = await bodyStyle(page);
+
+    for (const [label, name] of [
+      ["Atkinson Hyperlegible", "Atkinson"],
+      ["Lexend", "Lexend"],
+      ["OpenDyslexic", "OpenDyslexic"],
+    ]) {
+      await choose(page, "Font", label);
+      const { family } = await bodyStyle(page);
+      check(
+        `${where}: font ${label} changes the body font`,
+        family.includes(name) && family !== normal.family,
+        family,
+      );
+    }
+    await choose(page, "Font", "System");
+    check(
+      `${where}: font System restores the default`,
+      (await bodyStyle(page)).family === normal.family,
+    );
+
+    let small = await smallText(page);
+    check(
+      `${where}: no text under 14px (default)`,
+      small.length === 0,
+      small.join(" "),
+    );
+
+    await choose(page, "Text size", "Larger");
+    const larger = await bodyStyle(page);
+    check(
+      `${where}: Larger increases the text size`,
+      larger.size > normal.size,
+      `${normal.size}px -> ${larger.size}px`,
+    );
+    small = await smallText(page);
+    check(
+      `${where}: no text under 14px (Larger)`,
+      small.length === 0,
+      small.join(" "),
+    );
+
+    await choose(page, "Spacing", "Relaxed");
+    const relaxed = await bodyStyle(page);
+    check(
+      `${where}: Relaxed sets line height to at least 1.5 times the text size`,
+      relaxed.line >= relaxed.size * 1.5 - 0.01,
+      `${relaxed.line}px for ${relaxed.size}px`,
+    );
+
+    await choose(page, "Font", "OpenDyslexic");
+    await page.waitForTimeout(300);
+    const wide = await page.evaluate(
+      () => document.documentElement.scrollWidth - window.innerWidth,
+    );
+    check(
+      `${where}: no sideways page scroll with Larger, Relaxed and OpenDyslexic`,
+      wide <= 0,
+      `${wide}px over`,
+    );
+
+    await page.reload();
+    await page.getByRole("button", { name: /press any key to start/i }).click();
+    const after = await page.evaluate(() => ({
+      ...document.documentElement.dataset,
+      family: getComputedStyle(document.body).fontFamily,
+    }));
+    check(
+      `${where}: reading settings survive a reload`,
+      after.font === "opendyslexic" &&
+        after.textSize === "larger" &&
+        after.spacing === "relaxed" &&
+        after.family.includes("OpenDyslexic"),
+      JSON.stringify(after),
+    );
+    await openPanel(page, "Reading");
+    check(
+      `${where}: the Reading panel shows the saved choices`,
+      await page
+        .getByRole("group", { name: "Text size" })
+        .getByLabel("Larger", { exact: true })
+        .isChecked(),
+    );
+    await context.close();
+  }
+}
+
+/** Document-space top of an element, so scrolling does not count as a move. */
+const pageTop = (page, selector) =>
+  page.evaluate(
+    (sel) => document.querySelector(sel).getBoundingClientRect().top + scrollY,
+    selector,
+  );
+
+const VIEWPORTS = [
+  { name: "desktop", width: 1280, height: 800 },
+  { name: "phone", width: 390, height: 800 },
+];
+
+async function focusAids(browser) {
+  for (const viewport of VIEWPORTS) {
+    const where = viewport.name;
+    const { context, page } = await start(browser, viewport);
+    const bar = page.locator(".rec-bar");
+    const countIn = page.getByTestId("count-in");
+
+    // Recording bar and the large count-in.
+    await openSong(
+      page,
+      songFile(80, [clip("A", 0, 16, 16, [])]),
+      "focus.ajsong.json",
+    );
+    await page.locator("[data-clip-id]").first().click();
+    check(`${where}: no recording bar before recording`, !(await bar.count()));
+    await page.getByRole("button", { name: "Record", exact: true }).click();
+    const seen = [];
+    const seenAt = Date.now();
+    let barText = "";
+    while (Date.now() - seenAt < 3600) {
+      if (await countIn.count()) {
+        const n = (await countIn.textContent()).trim();
+        if (seen[seen.length - 1] !== n) seen.push(n);
+      }
+      if (!barText && (await bar.count())) barText = await bar.textContent();
+      await page.waitForTimeout(30);
+    }
+    check(
+      `${where}: count-in shows 4, 3, 2, 1`,
+      seen.join(",") === "4,3,2,1",
+      seen.join(","),
+    );
+    check(
+      `${where}: bar says what is being recorded into`,
+      /Recording into A — press Record to stop/.test(
+        barText.replace(/\s+/g, " "),
+      ),
+      barText.trim(),
+    );
+    check(
+      `${where}: the bar is a status`,
+      (await bar.getAttribute("role")) === "status",
+    );
+    check(`${where}: the count-in is gone after it`, !(await countIn.count()));
+    check(`${where}: bar stays while recording`, (await bar.count()) === 1);
+    await page.evaluate(() => scrollTo(0, 0));
+    const box = await bar.boundingBox();
+    const transport = await page.locator(".transport").boundingBox();
+    check(
+      `${where}: bar does not cover the transport controls`,
+      box.y + box.height <= transport.y + 0.5,
+      `bar bottom ${box.y + box.height}, transport top ${transport.y}`,
+    );
+    await page.getByRole("button", { name: "Record", exact: true }).click();
+    await page.waitForTimeout(150);
+    check(`${where}: bar is gone after stopping`, !(await bar.count()));
+    await page.getByRole("button", { name: "Back to start" }).click();
+
+    // Deleting a clip, with Undo in the message.
+    const clips = page.locator("[data-clip-id]");
+    const message = page.locator(".deleted");
+    await page.locator("[data-clip-id]").first().click();
+    await page.getByRole("button", { name: "Delete clip" }).click();
+    check(`${where}: delete clip removes it`, (await clips.count()) === 0);
+    check(
+      `${where}: message says Deleted A.`,
+      (await message.textContent()).includes("Deleted A."),
+    );
+    check(
+      `${where}: focus goes to the message's Undo`,
+      await page.evaluate(
+        () =>
+          document.activeElement?.textContent?.trim() === "Undo" &&
+          !!document.activeElement.closest(".deleted"),
+      ),
+    );
+    await message.getByRole("button", { name: "Undo" }).click();
+    check(
+      `${where}: Undo in the message restores the clip`,
+      (await clips.count()) === 1,
+    );
+    check(`${where}: the message goes after Undo`, !(await message.count()));
+    check(
+      `${where}: focus is not lost to the page`,
+      await page.evaluate(() => document.activeElement !== document.body),
+    );
+
+    // Dismiss, with the keyboard.
+    await page.locator("[data-clip-id]").first().click();
+    await page.getByRole("button", { name: "Delete clip" }).click();
+    await message.getByRole("button", { name: "Dismiss" }).click();
+    check(`${where}: Dismiss removes the message`, !(await message.count()));
+    check(
+      `${where}: Dismiss does not bring the clip back`,
+      (await clips.count()) === 0,
+    );
+    await page.keyboard.press("Control+KeyZ");
+    check(`${where}: main Undo still restores it`, (await clips.count()) === 1);
+
+    // Deleting a track.
+    await context.close();
+  }
+  await focusAidsTrack(browser);
+  await firstTimeHints(browser);
+  await noLayoutJumps(browser);
+}
+
+async function focusAidsTrack(browser) {
+  for (const viewport of VIEWPORTS) {
+    const where = viewport.name;
+    const { context, page } = await start(browser, viewport);
+    await openSong(
+      page,
+      songFile(120, [clip("A", 0, 8, 8, [])], null, [track("t2", "Bass", [])]),
+      "focus2.ajsong.json",
+    );
+    const lanes = () => page.locator("[data-track-id]").count();
+    const before = await lanes();
+    await openPanel(page, "Track");
+    await page.getByRole("button", { name: "Delete Lead" }).click();
+    const message = page.locator(".deleted");
+    check(
+      `${where}: delete track shows its message`,
+      (await message.textContent()).includes("Deleted Lead."),
+    );
+    check(
+      `${where}: a track is gone`,
+      (await lanes()) === before - 1,
+      `${before} -> ${await lanes()}`,
+    );
+    check(
+      `${where}: focus is in the message`,
+      await page.evaluate(() => !!document.activeElement?.closest(".deleted")),
+    );
+    await message.getByRole("button", { name: "Undo" }).click();
+    check(`${where}: Undo restores the track`, (await lanes()) === before);
+    check(
+      `${where}: the track message goes after Undo`,
+      !(await message.count()),
+    );
+    await context.close();
+  }
+}
+
+async function firstTimeHints(browser) {
+  for (const viewport of VIEWPORTS) {
+    const where = viewport.name;
+    const { context, page } = await start(browser, viewport);
+    const timelineHint = page.locator('[data-hint="timeline"]');
+    const chordHint = page.locator('[data-hint="chords"]');
+    check(
+      `${where}: timeline hint shows the first time`,
+      (await timelineHint.count()) === 1,
+    );
+    check(
+      `${where}: chord hint waits for the panel`,
+      (await chordHint.count()) === 0,
+    );
+    await openPanel(page, "Chord builder");
+    check(
+      `${where}: chord hint shows the first time`,
+      (await chordHint.count()) === 1,
+    );
+    await chordHint.getByRole("button", { name: "Got it" }).click();
+    check(
+      `${where}: Got it hides the chord hint`,
+      (await chordHint.count()) === 0,
+    );
+    await page.reload();
+    await page.getByRole("button", { name: /press any key to start/i }).click();
+    await page.waitForTimeout(300);
+    await openPanel(page, "Chord builder");
+    check(
+      `${where}: chord hint stays gone after a reload`,
+      (await chordHint.count()) === 0,
+    );
+    check(
+      `${where}: timeline hint still shows (not dismissed)`,
+      (await timelineHint.count()) === 1,
+    );
+    await timelineHint.getByRole("button", { name: "Got it" }).click();
+    await page.reload();
+    await page.getByRole("button", { name: /press any key to start/i }).click();
+    await page.waitForTimeout(300);
+    check(
+      `${where}: timeline hint stays gone after a reload`,
+      (await timelineHint.count()) === 0,
+    );
+    await context.close();
+  }
+}
+
+async function noLayoutJumps(browser) {
+  for (const viewport of VIEWPORTS) {
+    const where = viewport.name;
+    const { context, page } = await start(browser, viewport);
+    const spots = async () => [
+      await pageTop(page, ".transport"),
+      await pageTop(page, ".timeline"),
+    ];
+    const first = await spots();
+    let same = true;
+    for (const label of [
+      "Track",
+      "Clip",
+      "Chord builder",
+      "Recording",
+      "Timeline",
+      "Song",
+      "Reading",
+      "Save & export",
+    ]) {
+      await openPanel(page, label);
+      const now = await spots();
+      if (now[0] !== first[0] || now[1] !== first[1]) same = false;
+    }
+    check(
+      `${where}: switching panels does not move the top bar or timeline`,
+      same,
+      `${first} -> ${await spots()}`,
+    );
+    await context.close();
+  }
+}
+
 /** Serve the built app (dist/) with Vite's preview server. */
+const AXE_TAGS = ["wcag2a", "wcag2aa", "wcag21a", "wcag21aa", "wcag22aa"];
+
+/** One PASS/FAIL per screen: serious or critical axe violations fail it. */
+async function axeScan(page, name) {
+  const { violations } = await new AxeBuilder({ page })
+    .withTags(AXE_TAGS)
+    .analyze();
+  const bad = violations.filter(
+    (v) => v.impact === "serious" || v.impact === "critical",
+  );
+  const count = (impact) =>
+    violations.filter((v) => v.impact === impact).length;
+  check(
+    `axe: ${name}`,
+    bad.length === 0,
+    `serious ${count("serious")}, critical ${count("critical")}, ` +
+      `moderate ${count("moderate")}, minor ${count("minor")}`,
+  );
+  console.log(
+    `AXE ${name} | serious ${count("serious")} | critical ${count("critical")} | moderate ${count("moderate")} | minor ${count("minor")}`,
+  );
+  for (const v of violations) {
+    const targets = v.nodes.map((n) => n.target.join(" ")).join("; ");
+    console.log(
+      `  ${bad.includes(v) ? "VIOLATION" : "note"} [${v.impact}] ${v.id}: ${v.help} -> ${targets}`,
+    );
+  }
+}
+
+/** Accessibility scan (#90) of every screen, desktop and phone. */
+async function accessibilityScan(browser) {
+  for (const viewport of VIEWPORTS) {
+    const w = viewport.name;
+    const scan = (page, name) => axeScan(page, `${w} ${name}`);
+
+    // Start overlay: before the first key press.
+    {
+      const context = await browser.newContext({ viewport });
+      const page = await context.newPage();
+      await page.goto(URL);
+      await page
+        .getByRole("button", { name: /press any key to start/i })
+        .waitFor();
+      await scan(page, "start overlay");
+      await context.close();
+    }
+
+    // First screen (the timeline hint is showing), then each panel.
+    {
+      const { context, page } = await start(browser, viewport);
+      await scan(page, "first screen");
+      await scan(page, "first-time hint");
+      await page
+        .locator('[data-hint="timeline"]')
+        .getByRole("button", { name: "Got it" })
+        .click();
+      await openSong(
+        page,
+        songFile(80, [clip("A", 0, 16, 16, [note("n1", 60, 0)])]),
+        "axe.ajsong.json",
+      );
+      await page.locator("[data-clip-id]").first().click();
+      for (const label of [
+        "Track",
+        "Clip",
+        "Chord builder",
+        "Recording",
+        "Timeline",
+        "Song",
+        "Reading",
+        "Save & export",
+      ]) {
+        await openPanel(page, label);
+        await scan(page, `${label} panel`);
+      }
+
+      // Recording: the count-in, then the bar.
+      await page.getByRole("button", { name: "Record", exact: true }).click();
+      await page.getByTestId("count-in").waitFor();
+      await scan(page, "count-in");
+      await page.locator(".rec-bar").waitFor();
+      await page.getByTestId("count-in").waitFor({ state: "detached" });
+      await scan(page, "recording bar");
+      await page.getByRole("button", { name: "Record", exact: true }).click();
+      await page.waitForTimeout(150);
+
+      // The Deleted/Undo message.
+      await page.locator("[data-clip-id]").first().click();
+      await page.getByRole("button", { name: "Delete clip" }).click();
+      await page.locator(".deleted").waitFor();
+      await scan(page, "deleted message");
+      await context.close();
+    }
+
+    // Reading set to OpenDyslexic + Larger + Relaxed.
+    {
+      const { context, page } = await start(browser, viewport);
+      await openPanel(page, "Reading");
+      for (const [group, label] of [
+        ["Font", "OpenDyslexic"],
+        ["Text size", "Larger"],
+        ["Spacing", "Relaxed"],
+      ]) {
+        await page
+          .getByRole("group", { name: group })
+          .getByLabel(label, { exact: true })
+          .check();
+      }
+      await scan(page, "OpenDyslexic, Larger, Relaxed");
+      await context.close();
+    }
+  }
+}
+
 async function startPreview() {
   const { preview } = await import("vite");
   const server = await preview({ preview: { port: 4173, open: false } });
@@ -972,6 +1461,9 @@ async function startPreview() {
     await loopRegion(browser);
     await wavCoversSong(browser);
     await phone64Bars(browser);
+    await readingSettings(browser);
+    await focusAids(browser);
+    await accessibilityScan(browser);
   } finally {
     await browser.close();
     await preview?.server.close();

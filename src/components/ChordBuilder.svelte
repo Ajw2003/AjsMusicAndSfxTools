@@ -338,7 +338,7 @@
     line-height: 1.2;
   }
   .numeral {
-    font-size: 0.8rem;
+    font-size: 0.875rem;
     color: var(--color-muted);
   }
   .progression {

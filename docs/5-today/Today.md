@@ -1,4 +1,4 @@
-# Today (tier 5): 2026-10-04, handoff (usability pass in progress)
+# Today (tier 5): 2026-10-04, handoff (usability pass built, awaiting review)
 
 **Read this first, then [ProjectState](../3-state/ProjectState.md) and [the arranger plan](../plans/arranger-timeline.md).**
 
@@ -14,11 +14,11 @@
 
 ## Next session, in order
 
-1. Done on the branch: scrubbing (owner's request) and #86 calmer layout. Next: #87 plain words, then #88,
-   #89; #90 runs throughout. Browser-check each step, with before/after
-   screenshots in `docs/generated/usability/`.
-2. One PR for the pass (or one per step if the owner prefers), then the owner tries it.
-3. Then phase C: #79–#81 audio files, then D: #82 microphone.
+1. The whole #84 pass is built: #86 merged (PR #91); #87–#90 are on `claude/modest-mendel-kfiuw7` in one PR.
+   The owner reviews, merges and tries it (they have dyslexia and ADHD); feedback becomes new issues.
+2. Then phase C: #79–#81 audio files, then D: #82 microphone.
+3. Browser checks here need `CHROMIUM_PATH=/opt/pw-browsers/chromium-1194/chrome-linux/chrome` set inline
+   (the cloud sandbox's Chromium is older than Playwright's pinned one); CI downloads its own.
 
 ## Open questions for the owner
 

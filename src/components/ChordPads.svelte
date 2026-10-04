@@ -110,7 +110,7 @@
     padding: 0 0.3rem;
     border: 1px solid var(--color-border);
     border-radius: 0.3rem;
-    font-size: 0.85rem;
+    font-size: 0.875rem;
     color: var(--color-muted);
     text-align: center;
   }

@@ -177,7 +177,7 @@
     padding: 0.15rem 0.3rem;
     overflow: hidden;
     font: inherit;
-    font-size: 0.75rem;
+    font-size: 0.875rem;
     text-align: left;
     color: var(--color-text);
     /* Tinted with the clip colour, solid edge so it reads at a glance. */

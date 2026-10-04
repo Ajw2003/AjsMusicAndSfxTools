@@ -20,7 +20,7 @@
 
 <section class="panel" aria-label="Song settings">
   <label>
-    BPM
+    Tempo (beats per minute)
     <input
       type="number"
       min="40"
@@ -38,15 +38,16 @@
     Metronome
   </button>
   <label>
-    Master volume
+    Volume
     <input
       type="range"
       min="-40"
       max="0"
       step="1"
       value={masterDb}
+      aria-valuetext="{masterDb} decibels"
       oninput={(e) => onMasterDb(Number(e.currentTarget.value))}
     />
-    <output>{masterDb} dB</output>
+    <output>{masterDb}</output>
   </label>
 </section>

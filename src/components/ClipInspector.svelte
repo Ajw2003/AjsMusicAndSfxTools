@@ -118,12 +118,13 @@
       />
     </label>
     <label>
-      Length (beats)
+      Length
       <input
         type="number"
         min="0.25"
         step="0.25"
         value={clip.lengthBeats}
+        aria-describedby="length-unit"
         onchange={(e) =>
           commitNumber(
             e,
@@ -131,15 +132,16 @@
             () => clip.lengthBeats,
           )}
       />
+      <span id="length-unit" class="unit">beats (4 beats = 1 bar)</span>
     </label>
     <label>
-      Loop length (beats)
+      Repeats every
       <input
         type="number"
         min="0.25"
         step="0.25"
         value={clip.loopBeats}
-        aria-describedby="loop-hint"
+        aria-describedby="loop-hint repeat-unit"
         onchange={(e) =>
           commitNumber(
             e,
@@ -147,40 +149,52 @@
             () => clip.loopBeats,
           )}
       />
+      <span id="repeat-unit" class="unit">beats</span>
     </label>
     {#if isNotes}
-      <label>
-        Transpose (semitones)
-        <input
-          type="number"
-          min="-24"
-          max="24"
-          step="1"
-          value={clip.transpose}
-          onchange={(e) =>
-            commitNumber(
-              e,
-              (v) => ({ transpose: Math.round(v) }),
-              () => clip.transpose,
-            )}
-        />
-      </label>
+      <span class="stepper">
+        <label>
+          Higher / lower (steps)
+          <input
+            type="number"
+            min="-24"
+            max="24"
+            step="1"
+            value={clip.transpose}
+            onchange={(e) =>
+              commitNumber(
+                e,
+                (v) => ({ transpose: Math.round(v) }),
+                () => clip.transpose,
+              )}
+          />
+        </label>
+        <button
+          type="button"
+          aria-label="Lower by one step"
+          disabled={clip.transpose <= -24}
+          onclick={() => onChange({ transpose: clip.transpose - 1 })}>−</button
+        >
+        <button
+          type="button"
+          aria-label="Higher by one step"
+          disabled={clip.transpose >= 24}
+          onclick={() => onChange({ transpose: clip.transpose + 1 })}>+</button
+        >
+      </span>
     {/if}
     <label>
-      Volume (dB)
+      Volume
       <input
-        type="number"
+        type="range"
         min="-30"
         max="6"
         step="1"
         value={clip.gainDb}
-        onchange={(e) =>
-          commitNumber(
-            e,
-            (v) => ({ gainDb: v }),
-            () => clip.gainDb,
-          )}
+        aria-valuetext="{clip.gainDb} decibels"
+        onchange={(e) => onChange({ gainDb: Number(e.currentTarget.value) })}
       />
+      <output>{clip.gainDb}</output>
     </label>
     <span class="colour">
       <label>
@@ -201,8 +215,8 @@
     </span>
   </div>
   <p id="loop-hint" class="hint">
-    4 beats = 1 bar. A shorter loop than the length repeats the content;
-    shortening the loop drops the notes past its end (Undo brings them back).
+    A shorter "repeats every" than the length repeats the content; shortening it
+    drops the notes past its end (Undo brings them back).
   </p>
   <div class="actions">
     <button
@@ -291,9 +305,18 @@
     opacity: 0.4;
     cursor: default;
   }
+  .unit {
+    color: var(--color-muted);
+    font-size: 0.875rem;
+  }
+  .stepper {
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+  }
   .hint {
     margin: 0;
     color: var(--color-muted);
-    font-size: 0.85rem;
+    font-size: 0.875rem;
   }
 </style>

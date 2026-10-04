@@ -38,7 +38,7 @@
     Loop
   </button>
   <label>
-    Loop from bar
+    Repeat bars
     <input
       type="number"
       min="1"
@@ -47,7 +47,7 @@
     />
   </label>
   <label>
-    to bar
+    to
     <input
       type="number"
       min="1"
@@ -56,7 +56,7 @@
     />
   </label>
   <label>
-    Snap
+    Line clips up to:
     <select
       value={snapGrid}
       onchange={(e) => {

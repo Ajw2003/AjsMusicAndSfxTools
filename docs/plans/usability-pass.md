@@ -3,7 +3,7 @@
 **Asked for (owner, 2026-10-03):** "do a second pass on the UI for usability, especially for those with
 disabilities like dyslexia and ADHD." Then, 2026-10-04: it comes **next**, before phase C (audio files).
 
-**Status:** approved by the owner 2026-10-04 ("the rest is good"); being built. Steps are issues #86–#90.
+**Status:** approved by the owner 2026-10-04 ("the rest is good"). All five steps (#86–#90) built 2026-10-04; steps 2–5 wait on review in a pull request and on the owner's try-out. Results: `docs/generated/usability/README.md`.
 
 **Owner's answers (2026-10-04):** the five steps, all four fonts and the draft names are fine; yes to
 `@axe-core/playwright`; the owner has both dyslexia and ADHD and will try it themselves.
