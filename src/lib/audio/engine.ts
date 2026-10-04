@@ -45,7 +45,8 @@ interface Voice {
   release(midi: number, time?: number): void;
   /** Play a note of known length at a scheduled time (seconds). */
   play(midi: number, seconds: number, velocity: number, time: number): void;
-  releaseAll(): void;
+  /** Cut every sounding note at `time` (default: now). */
+  releaseAll(time?: number): void;
   dispose(): void;
 }
 
@@ -119,10 +120,10 @@ function buildNoiseVoice(preset: ChiptunePreset): Voice {
       this.attack(midi, velocity, time);
       this.release(midi, time + Math.min(seconds, 0.05));
     },
-    releaseAll() {
-      kickNoise.triggerRelease();
-      snare.triggerRelease();
-      hat.triggerRelease();
+    releaseAll(time) {
+      kickNoise.triggerRelease(time);
+      snare.triggerRelease(time);
+      hat.triggerRelease(time);
     },
     dispose() {
       for (const n of all) n.dispose();
@@ -152,7 +153,7 @@ function buildPitchedVoice(preset: ChiptunePreset): Voice {
       release: (midi, time) => synth.triggerRelease(toHz(midi), time),
       play: (midi, seconds, velocity, time) =>
         synth.triggerAttackRelease(toHz(midi), seconds, time, velocity),
-      releaseAll: () => synth.releaseAll(),
+      releaseAll: (time) => synth.releaseAll(time),
       dispose() {
         synth.dispose();
         output.dispose();
@@ -177,9 +178,9 @@ function buildPitchedVoice(preset: ChiptunePreset): Voice {
     },
     play: (midi, seconds, velocity, time) =>
       synth.triggerAttackRelease(toHz(midi), seconds, time, velocity),
-    releaseAll() {
+    releaseAll(time) {
       heldMidi = null;
-      synth.triggerRelease();
+      synth.triggerRelease(time);
     },
     dispose() {
       synth.dispose();
@@ -245,10 +246,10 @@ export class AudioEngine {
     if (this.#started) return;
     this.#starting ??= (async () => {
       await Tone.start();
-      // Tone's default lookAhead (0.1 s) schedules live notes that far ahead,
-      // which feels laggy when playing by hand. 20 ms is still enough to keep
-      // timing stable while keeping live latency low.
-      Tone.getContext().lookAhead = 0.02;
+      // Tone's default look-ahead (0.1 s) is kept for song playback: notes
+      // are scheduled that far ahead, so a busy main thread can't make them
+      // late. Live notes bypass it (see noteOn). A 20 ms look-ahead made
+      // chords land late under load.
       this.#started = true;
     })().finally(() => {
       this.#starting = null;
@@ -304,16 +305,21 @@ export class AudioEngine {
     return tv.voice;
   }
 
+  // Live notes and releases happen at the audio clock's present moment,
+  // not Tone's now() (which adds the scheduling look-ahead), so playing by
+  // hand has no added latency.
+
   noteOn(trackId: string, midi: number, velocity = 0.8): void {
-    this.#voiceFor(trackId).attack(midi, velocity);
+    this.#voiceFor(trackId).attack(midi, velocity, Tone.immediate());
   }
 
   noteOff(trackId: string, midi: number): void {
-    this.#voiceFor(trackId).release(midi);
+    this.#voiceFor(trackId).release(midi, Tone.immediate());
   }
 
   releaseAll(): void {
-    for (const tv of this.#voices.values()) tv.voice.releaseAll();
+    const time = Tone.immediate();
+    for (const tv of this.#voices.values()) tv.voice.releaseAll(time);
   }
 
   // ---- Transport ----
@@ -523,7 +529,14 @@ export class AudioEngine {
 
   /** Playhead position on the timeline, in beats (float). */
   currentBeat(): number {
-    const beat = Tone.getTransport().ticks / PPQ;
+    const transport = Tone.getTransport();
+    // While playing, read the position being heard right now; transport
+    // .ticks is the scheduling position, a look-ahead in the future. When
+    // stopped, .ticks is where play will start (a seek lands there at once).
+    const ticks = this.isPlaying
+      ? transport.getTicksAtTime(Tone.immediate())
+      : transport.ticks;
+    const beat = ticks / PPQ;
     const loop = this.activeLoop;
     if (!loop || beat < loop.endBeat) return beat;
     // Right at the wrap the transport can briefly report the loop end itself.

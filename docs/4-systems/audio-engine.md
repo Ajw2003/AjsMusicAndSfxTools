@@ -13,6 +13,12 @@ which wins over the toggle. `pause` keeps the playhead, `stop` returns it to 0, 
 into the active loop). `currentBeat()` is the absolute timeline beat. `renderWav(song, { range, passes })`
 exports the whole song or N passes of the loop region.
 
+**Timing (2026-10-04):** song playback is scheduled with Tone's default 100 ms look-ahead; live `noteOn`/`noteOff`
+and `releaseAll` use `Tone.immediate()`, so key presses aren't delayed by it. `currentBeat()` reads the heard
+position (`getTicksAtTime(Tone.immediate())`) while playing, so the playhead and recorded notes match what you
+hear. Reaching the song end stops in place; `play()` rewinds from there (rewinding at the stop raced Tone's
+clock and could replay beat 0). See Decisions, 2026-10-04.
+
 ## What it owns
 
 The one place that makes sound. It takes note events (`noteOn(instrumentId, midiNote, velocity)`,
