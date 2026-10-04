@@ -18,9 +18,11 @@
 
 ## Next session, in order
 
-1. Phase B pull request: only with the owner's go-ahead, then CI green, then merge only if they say so.
-2. Phase C: #79–#81 audio files, then D: #82 microphone.
-3. #84 usability pass when the owner wants it scheduled (before or after phases C/D is their call).
+1. Phase B pull request #85 is open (owner said yes). Get CI green; merge only if the owner says so.
+2. **#84 usability pass comes next, before phase C** (owner, 2026-10-04). Plan for the owner to review while
+   they test: `docs/plans/usability-pass.md`. "Before" screenshots: `docs/generated/usability/`. Wait for
+   answers to its five questions, then file one sub-issue of #84 per step and build.
+3. Then phase C: #79–#81 audio files, then D: #82 microphone.
 
 ## Open questions for the owner
 
