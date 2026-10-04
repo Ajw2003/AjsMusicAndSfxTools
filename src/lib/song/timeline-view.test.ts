@@ -7,6 +7,7 @@ import {
   clampZoom,
   clipAtBeat,
   clipLabel,
+  clipLabels,
   clipPreview,
   dragClip,
   pxToBeat,
@@ -185,5 +186,42 @@ describe("dragging clips", () => {
     const out = dragClip(clip(), "trim", 20, 1);
     expect(out.startBeat).toBe(11);
     expect(out.lengthBeats).toBe(1);
+  });
+});
+
+describe("chord labels on clips", () => {
+  const chordClip = () => {
+    const c = createNoteClip(0, 8);
+    c.content = {
+      kind: "notes",
+      notes: [],
+      labels: [
+        { startBeat: 0, name: "C" },
+        { startBeat: 4, name: "G" },
+      ],
+    };
+    return c;
+  };
+  it("places labels by time", () => {
+    expect(clipLabels(chordClip()).map((l) => [l.name, l.left])).toEqual([
+      ["C", 0],
+      ["G", 50],
+    ]);
+  });
+  it("repeats labels when the clip is stretched", () => {
+    const c = chordClip();
+    c.lengthBeats = 16;
+    expect(clipLabels(c).map((l) => l.name)).toEqual(["C", "G", "C", "G"]);
+  });
+  it("shifts labels by the trim offset", () => {
+    const c = chordClip();
+    c.offsetBeats = 4;
+    expect(clipLabels(c).map((l) => [l.name, l.left])).toEqual([
+      ["G", 0],
+      ["C", 50],
+    ]);
+  });
+  it("has none for clips without labels", () => {
+    expect(clipLabels(createNoteClip(0, 4))).toEqual([]);
   });
 });

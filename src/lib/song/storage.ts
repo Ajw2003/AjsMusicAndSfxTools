@@ -94,10 +94,24 @@ function parseContent(v: unknown, where: string): ClipContent {
     if (!Array.isArray(v.notes)) {
       throw new Error(`${where} notes must be a list.`);
     }
-    return {
+    const content: ClipContent = {
       kind: "notes",
       notes: v.notes.map((n, i) => parseNote(n, `${where} note ${i + 1}`)),
     };
+    if (v.labels !== undefined) {
+      if (!Array.isArray(v.labels)) {
+        throw new Error(`${where} labels must be a list.`);
+      }
+      content.labels = v.labels.map((l, i) => {
+        const what = `${where} label ${i + 1}`;
+        if (!isObj(l)) throw new Error(`${what} must be an object.`);
+        return {
+          startBeat: finite(l.startBeat, `${what} startBeat`),
+          name: str(l.name, `${what} name`),
+        };
+      });
+    }
+    return content;
   }
   if (v.kind === "audio") {
     return {

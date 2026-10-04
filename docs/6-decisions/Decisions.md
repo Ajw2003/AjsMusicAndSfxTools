@@ -5,6 +5,24 @@ Append-only. Newest at the top. An old entry is never rewritten; when one is rep
 
 ---
 
+## 2026-10-04 — Live notes skip the look-ahead; playback keeps Tone's default
+
+**Context.** The engine set Tone's scheduling look-ahead to 20 ms so notes played by hand felt immediate.
+While building the chord builder (#77), a browser check caught a chord clip's last chord starting 31 ms late:
+song notes are scheduled only one look-ahead before they sound, so any main-thread pause longer than that
+makes them late.
+
+**Decision.** Song playback uses Tone's default 100 ms look-ahead. Live note-on, note-off and release-all use
+the audio clock's present moment (`Tone.immediate()`), so playing by hand has no added delay. The playhead
+and recording timestamps read the position being heard at that moment rather than the scheduling position.
+
+**Why.** Measured in headless Chromium: a live key press now starts its note 0.0 ms after the call (it was 20
+ms or more). The chord-clip check passed on every run after the change. Rejected: a middle value such as
+50 ms, which would still add 50 ms to every live note and still fail under a longer pause. Supersedes the
+20 ms choice in `src/lib/audio/engine.ts` (not previously logged here).
+
+**Status.** Standing.
+
 ## 2026-10-03 — Add Playwright for browser checks
 
 **Context.** The arranger's timeline, dragging and playback can only be properly checked in a real browser.

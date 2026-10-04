@@ -19,7 +19,7 @@ projects and download a WAV. Checked by a headless-browser run (21/21 checks, de
 | M6: Save and export | 10% | Project files + WAV built; MP3/OGG, MIDI, options not | #51 |
 | M7: Piano roll and step sequencer | 10% | Read-only loop view only | #57 |
 | M8: Installable, offline and polished | 5% | Not started | #62 |
-| M9: Arranger | 15% | Phase A (#71–#76) built on branch, not merged; phases B–D not started | #70 |
+| M9: Arranger | 15% | Phase A (#71–#76) live (PR #83); phase B (#77, #78) built on branch, not merged; C, D not started | #70 |
 
 ## M0: Foundation
 
@@ -53,14 +53,16 @@ Plan: `docs/plans/chiptune-prototype.md`. Built in three chunks (pure logic, eng
 
 Plan: `docs/plans/arranger-timeline.md`. Handoff detail: `docs/5-today/Today.md`.
 
-- **Built, on branch only:** song format v2 (#71), checked: 95 unit tests, browser regression 23/23.
-- **Built, on branch only (2026-10-03):** timeline view, playback from the playhead with a loop toggle, and
+- **Merged and live 2026-10-03 (PR #83, merged by the owner, CI green incl. browser checks, Pages deploy
+  run 37152072987 succeeded):** everything below.
+- **Built:** song format v2 (#71), checked: 95 unit tests, browser regression 23/23.
+- **Built (2026-10-03):** timeline view, playback from the playhead with a loop toggle, and
   recording into clips (#72, #73, #76). Checked: types, lint, format, 102 unit tests, production build, and
   `e2e/timeline.cjs` in headless Chromium, 22/22, run twice. It records a pass into a clip, measures that a
   stretched clip sounds 4 times 1.000 s apart, checks the loop region repeats bar 2 only, gets a 17.00 s WAV for a
   16 s song, and checks a 64-bar song at 390 px and 1280 px wide with no page-level sideways scroll. Screenshots
   were looked at in light and dark mode.
-- **Built, on branch only (2026-10-03):** drag clips to move/stretch/trim with snap (#74), clip inspector with
+- **Built (2026-10-03):** drag clips to move/stretch/trim with snap (#74), clip inspector with
   split/duplicate/copy/paste/delete and shortcuts (#75). `e2e/timeline.cjs` now has 49 checks, including every
   drag type snapping and undoing in one step, and a keyboard-only run through every clip edit. Passed 3 times in a
   row after a fix for a one-frame playhead flicker at the loop wrap, which run 2 of an earlier batch caught.
@@ -71,7 +73,16 @@ Plan: `docs/plans/arranger-timeline.md`. Handoff detail: `docs/5-today/Today.md`
   as there is no device here); picking a colour with the keyboard alone (the browser's own colour picker
   can't be driven from the test). Clips cover the lane they sit in, so on a phone a long song is scrolled by
   swiping the ruler or empty lane space, not by swiping a clip.
-- **Not started:** #77–#82.
+- **Built, on branch only (2026-10-04):** chord builder that makes chord clips (#77) and one-key chord pads (#78).
+  Checked: 126 unit tests; `npm run test:e2e` 62/62, twice. It builds I–V–vi–IV in D (D A Bm G), checks the clip's
+  notes and chord names, and times playback (4 chords of 3 notes, 1.000 s apart, nothing after the end). It also
+  records pads by keys 1–4, gets the four chords back, and finds the pads after a reload. Screenshots checked.
+- **Fixed on the way (2026-10-04):** reaching the song end could replay beat 0's notes (4 of 12 runs; 0 of 12
+  after); song playback could start late under load (now 100 ms look-ahead), while live key presses now start
+  0.0 ms after the press instead of 20 ms or more. See Decisions, 2026-10-04.
+- **Not started:** #79–#82.
+- **Next UI pass:** #84 (dyslexia and ADHD usability), filed under M4. Already noted for it: on a phone the
+  chord builder's per-chord buttons wrap untidily, and chord pads make the keyboard dock taller.
 
 ## The one thing that is not what it looks like
 

@@ -266,3 +266,23 @@ describe("autosave", () => {
     expect(warn).toHaveBeenCalledTimes(2);
   });
 });
+
+describe("chord labels", () => {
+  it("round-trip with a note clip", () => {
+    const s = createSong();
+    s.tracks[0].clips[0].content = {
+      kind: "notes",
+      notes: [],
+      labels: [{ startBeat: 4, name: "Am" }],
+    };
+    const back = parseSong(serializeSong(s)).tracks[0].clips[0].content;
+    expect(back.kind === "notes" && back.labels).toEqual([
+      { startBeat: 4, name: "Am" },
+    ]);
+  });
+  it("reject a bad label with a clear message", () => {
+    const s = JSON.parse(serializeSong(createSong()));
+    s.tracks[0].clips[0].content.labels = [{ startBeat: "x", name: "C" }];
+    expect(() => parseSong(JSON.stringify(s))).toThrow(/label 1 startBeat/);
+  });
+});

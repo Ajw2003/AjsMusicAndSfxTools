@@ -1,4 +1,5 @@
 import { getPreset, type ChiptuneSoundId } from "../audio/chiptune";
+import type { ChordLabel } from "./chords";
 
 /** One recorded note. Times are in beats so tempo changes don't move notes. */
 export interface Note {
@@ -15,7 +16,12 @@ export type TrackKind = "notes" | "audio";
 
 export type ClipContent =
   /** Note times are beats from the start of the clip's source loop, within [0, loopBeats). */
-  | { kind: "notes"; notes: Note[] }
+  | {
+      kind: "notes";
+      notes: Note[];
+      /** Chord names shown on the clip (chord-builder clips only). */
+      labels?: ChordLabel[];
+    }
   /** Used in a later phase; a type only for now. */
   | { kind: "audio"; assetId: string; sourceOffsetSeconds: number };
 
@@ -289,9 +295,13 @@ function mustFindClip(song: Song, clipId: string) {
 }
 
 function copyContent(content: ClipContent): ClipContent {
-  return content.kind === "notes"
-    ? { kind: "notes", notes: content.notes.map((n) => ({ ...n })) }
-    : { ...content };
+  if (content.kind !== "notes") return { ...content };
+  const copy: ClipContent = {
+    kind: "notes",
+    notes: content.notes.map((n) => ({ ...n })),
+  };
+  if (content.labels) copy.labels = content.labels.map((l) => ({ ...l }));
+  return copy;
 }
 
 function normalizeOffset(offset: number, loop: number): number {
@@ -313,10 +323,14 @@ function updateClipFields(
     // Dropped (not hidden) so that undo, which restores the old snapshot,
     // brings the notes back.
     const limit = next.loopBeats;
+    const { notes, labels } = next.content;
     next.content = {
       kind: "notes",
-      notes: next.content.notes.filter((n) => n.startBeat < limit),
+      notes: notes.filter((n) => n.startBeat < limit),
     };
+    if (labels) {
+      next.content.labels = labels.filter((l) => l.startBeat < limit);
+    }
   }
   return next;
 }
@@ -426,7 +440,7 @@ export function applyCommand(song: Song, cmd: SongCommand): Song {
         return {
           ...c,
           content: {
-            kind: "notes",
+            ...c.content,
             notes: [...c.content.notes, ...cmd.notes],
           },
         };

@@ -25,6 +25,14 @@ focused clip do the same edits. `ClipInspector.svelte` has typed fields for ever
 copy, paste and delete use the existing commands. Copy/paste uses an in-app clipboard, not the system one, and
 pastes on the selected track at the playhead. Shortcuts are Ctrl+E/D/C/V and Delete, matched by physical key.
 
+**Chords, 2026-10-04 (#77, #78):** `src/lib/song/chords.ts` holds the theory: the seven chords of a major or minor
+key with roman numerals, chord names (sharps only), root-position voicings with the root between C3 and B3, common
+progressions, and `progressionContent`, which lays chords back to back as notes plus chord **labels**. A note
+clip's content may carry `labels` (chord name + beat in the source loop); split/duplicate copy them, shortening the
+loop drops those past its end, clearing removes them, and `storage.ts` saves and validates them. `clipLabels`
+(`timeline-view.ts`) places them across repeats for `ClipBlock`. The chord builder (`ChordBuilder.svelte`) makes a
+clip at the playhead's bar on the selected track; "Save as pad" adds to `song.chordPads` (`setChordPads`, undoable).
+
 ## What it owns
 
 The data model for a song: tempo, time signature, tracks (one instrument each), and the note

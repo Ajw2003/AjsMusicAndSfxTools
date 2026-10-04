@@ -270,3 +270,29 @@ export function dragClip(
     offsetBeats: (((offsetBeats + shift) % loopBeats) + loopBeats) % loopBeats,
   };
 }
+
+export interface PlacedLabel {
+  id: string;
+  name: string;
+  /** Percent of the clip width. */
+  left: number;
+}
+
+/** Chord names of a clip where they sound: repeated with the loop, trimmed by the offset. */
+export function clipLabels(clip: Clip): PlacedLabel[] {
+  if (clip.content.kind !== "notes" || !clip.content.labels) return [];
+  const { loopBeats, offsetBeats, lengthBeats } = clip;
+  const out: PlacedLabel[] = [];
+  clip.content.labels.forEach((label, i) => {
+    let rel = label.startBeat - offsetBeats;
+    if (rel < 0) rel += loopBeats;
+    for (let repeat = 0; rel < lengthBeats - 1e-9; rel += loopBeats, repeat++) {
+      out.push({
+        id: `${i}:${repeat}`,
+        name: label.name,
+        left: (rel / lengthBeats) * 100,
+      });
+    }
+  });
+  return out.sort((a, b) => a.left - b.left);
+}

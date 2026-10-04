@@ -3,6 +3,7 @@
   import {
     PREVIEW_NOTE_PCT,
     clipLabel,
+    clipLabels,
     clipPreview,
     repeatBoundaries,
     type DragMode,
@@ -103,6 +104,12 @@
 
   const preview = $derived(clipPreview(clip));
   const repeats = $derived(repeatBoundaries(clip));
+  const chords = $derived(clipLabels(clip));
+  const chordList = $derived(
+    clip.content.kind === "notes" && clip.content.labels?.length
+      ? `, chords ${clip.content.labels.map((l) => l.name).join(" ")}`
+      : "",
+  );
 </script>
 
 <button
@@ -113,7 +120,7 @@
   class:dragging
   class:away
   aria-selected={selected}
-  aria-label={clipLabel(clip, trackName, beatsPerBar)}
+  aria-label={clipLabel(clip, trackName, beatsPerBar) + chordList}
   data-clip-id={clip.id}
   style:left="{clip.startBeat * pxPerBeat}px"
   style:width="{Math.max(4, clip.lengthBeats * pxPerBeat - 2)}px"
@@ -135,6 +142,13 @@
   <span class="edge left" data-edge="trim" aria-hidden="true"></span>
   <span class="edge right" data-edge="stretch" aria-hidden="true"></span>
   <span class="name" aria-hidden="true">{clip.name}</span>
+  {#if chords.length > 0}
+    <span class="chords" aria-hidden="true">
+      {#each chords as c (c.id)}
+        <span class="chord" style:left="{c.left}%">{c.name}</span>
+      {/each}
+    </span>
+  {/if}
   <span class="preview" aria-hidden="true">
     {#each repeats as x (x)}
       <span class="repeat" style:left="{x}%"></span>
@@ -217,6 +231,20 @@
     overflow: hidden;
     text-overflow: ellipsis;
     line-height: 1.1;
+  }
+  .chords {
+    position: relative;
+    height: 1.1em;
+    flex: 0 0 auto;
+  }
+  .chord {
+    position: absolute;
+    top: 0;
+    padding-left: 0.15rem;
+    border-left: 2px solid var(--clip);
+    font-weight: 600;
+    line-height: 1.1;
+    white-space: nowrap;
   }
   .preview {
     position: relative;

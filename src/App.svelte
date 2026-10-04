@@ -1,5 +1,7 @@
 <script lang="ts">
   import { onMount } from "svelte";
+  import ChordBuilder from "./components/ChordBuilder.svelte";
+  import ChordPads from "./components/ChordPads.svelte";
   import ClipInspector from "./components/ClipInspector.svelte";
   import Keyboard from "./components/Keyboard.svelte";
   import SongFileBar from "./components/SongFileBar.svelte";
@@ -16,6 +18,7 @@
     createNoteClip,
     createTrack,
     findClip,
+    type ChordPad,
     type Clip,
     type LoopRegion,
     type Note,
@@ -31,8 +34,17 @@
     type RecordTarget,
   } from "./lib/song/timeline-view";
   import { loadAutosave, saveAutosave } from "./lib/song/storage";
+  import {
+    chordName,
+    chordPitches,
+    progressionBeats,
+    progressionContent,
+    type ProgressionChord,
+  } from "./lib/song/chords";
 
   const MAX_TRACKS = 8;
+  /** Chord pads are played with the number keys 1 to 8. */
+  const PAD_KEYS = [1, 2, 3, 4, 5, 6, 7, 8].map((n) => `Digit${n}`);
   const DEFAULT_QUANTIZE = 0.25;
   const AUTOSAVE_DELAY_MS = 800;
 
@@ -58,6 +70,8 @@
   let recordRegion: LoopRegion | null = null;
   /** The copied clip (a deep copy), pasted with a fresh id. */
   let clipboard = $state<Clip | null>(null);
+  let isChordBuilderOpen = $state(false);
+  let heldPadIds = $state<string[]>([]);
   let isPhone = $state(false);
 
   const recorder = new TakeRecorder();
@@ -303,6 +317,76 @@
     selectedClipId = null;
   }
 
+  // ---- Chord builder ----
+
+  let previewTimers: ReturnType<typeof setTimeout>[] = [];
+
+  /** Play chords one after another on the selected track, at the song tempo. */
+  function onPreviewChords(chords: ProgressionChord[]): void {
+    if (!isReady) return;
+    for (const t of previewTimers) clearTimeout(t);
+    previewTimers = [];
+    engine.releaseAll();
+    const trackId = selected.id;
+    const secondsPerBeat = 60 / history.song.bpm;
+    let at = 0;
+    for (const chord of chords) {
+      const pitches = chordPitches(chord.root, chord.quality);
+      const seconds = chord.beats * secondsPerBeat;
+      previewTimers.push(
+        setTimeout(() => {
+          for (const p of pitches) engine.noteOn(trackId, p, 0.7);
+        }, at * 1000),
+        // Released a moment early so repeated chords are heard as separate.
+        setTimeout(
+          () => {
+            for (const p of pitches) engine.noteOff(trackId, p);
+          },
+          (at + seconds - 0.05) * 1000,
+        ),
+      );
+      at += seconds;
+    }
+  }
+
+  /** The progression as a new clip on the selected track, at the playhead's bar. */
+  function onMakeChordClip(chords: ProgressionChord[]): void {
+    const track = history.song.tracks.find((t) => t.id === selectedId);
+    if (!track || track.kind !== "notes" || chords.length === 0) return;
+    const name = chords
+      .map((c) => chordName(c.root, c.quality))
+      .join(" ")
+      .slice(0, 40);
+    const clip = createNoteClip(
+      snapDownToBar(beat, history.song.beatsPerBar),
+      progressionBeats(chords),
+      name,
+    );
+    const { notes, labels } = progressionContent(chords);
+    clip.content = { kind: "notes", notes, labels };
+    history.apply({ type: "addClip", trackId: track.id, clip });
+    selectedClipId = clip.id;
+  }
+
+  /** Save a chord as a pad on the first free number key. */
+  function onSavePad(chord: ProgressionChord): void {
+    const pads = history.song.chordPads;
+    const keyCode = PAD_KEYS.find((k) => !pads.some((p) => p.keyCode === k));
+    if (!keyCode) return;
+    history.apply({
+      type: "setChordPads",
+      pads: [
+        ...pads,
+        {
+          id: crypto.randomUUID(),
+          name: chordName(chord.root, chord.quality),
+          pitches: chordPitches(chord.root, chord.quality),
+          keyCode,
+        },
+      ],
+    });
+  }
+
   // ---- Recording ----
 
   /**
@@ -507,7 +591,51 @@
     engine.setMasterVolumeDb(masterDb);
   }
 
+  // ---- Chord pads ----
+
+  // A pad is the whole chord on the keyboard path, so it plays on the
+  // selected track and records like notes.
+  function onPadDown(pad: ChordPad): void {
+    if (heldPadIds.includes(pad.id)) return;
+    heldPadIds = [...heldPadIds, pad.id];
+    for (const pitch of pad.pitches) onNoteOn(pitch, 0.8);
+  }
+
+  function onPadUp(pad: ChordPad): void {
+    if (!heldPadIds.includes(pad.id)) return;
+    heldPadIds = heldPadIds.filter((id) => id !== pad.id);
+    for (const pitch of pad.pitches) onNoteOff(pitch);
+  }
+
+  function releaseAllPads(): void {
+    for (const pad of history.song.chordPads) onPadUp(pad);
+  }
+
+  function onRemovePad(pad: ChordPad): void {
+    onPadUp(pad);
+    history.apply({
+      type: "setChordPads",
+      pads: history.song.chordPads.filter((p) => p.id !== pad.id),
+    });
+  }
+
+  function padForKey(e: KeyboardEvent): ChordPad | undefined {
+    if (e.ctrlKey || e.metaKey || e.altKey || isTyping(e.target)) return;
+    return history.song.chordPads.find((p) => p.keyCode === e.code);
+  }
+
+  function onWindowKeyup(e: KeyboardEvent): void {
+    const pad = padForKey(e);
+    if (pad) onPadUp(pad);
+  }
+
   function onWindowKeydown(e: KeyboardEvent): void {
+    const pad = padForKey(e);
+    if (pad) {
+      e.preventDefault();
+      if (!e.repeat) onPadDown(pad);
+      return;
+    }
     if (e.altKey || isTyping(e.target)) return;
     const isCtrl = e.ctrlKey || e.metaKey;
     if (!isCtrl) {
@@ -539,7 +667,12 @@
   }
 </script>
 
-<svelte:window onkeydown={onWindowKeydown} onpagehide={flushSave} />
+<svelte:window
+  onkeydown={onWindowKeydown}
+  onkeyup={onWindowKeyup}
+  onblur={releaseAllPads}
+  onpagehide={flushSave}
+/>
 <svelte:document
   onvisibilitychange={() => {
     if (document.visibilityState === "hidden") flushSave();
@@ -614,6 +747,31 @@
     {onAdd}
   />
 
+  <div class="tools">
+    <button
+      type="button"
+      aria-expanded={isChordBuilderOpen}
+      aria-controls="chord-builder"
+      onclick={() => (isChordBuilderOpen = !isChordBuilderOpen)}
+    >
+      Chord builder <span aria-hidden="true"
+        >{isChordBuilderOpen ? "▴" : "▾"}</span
+      >
+    </button>
+  </div>
+  {#if isChordBuilderOpen}
+    <div id="chord-builder">
+      <ChordBuilder
+        trackName={selected.kind === "notes" ? selected.name : null}
+        beatsPerBar={song.beatsPerBar}
+        canAddPad={song.chordPads.length < PAD_KEYS.length}
+        onPreview={onPreviewChords}
+        onMakeClip={onMakeChordClip}
+        {onSavePad}
+      />
+    </div>
+  {/if}
+
   {#if inspected}
     <ClipInspector
       clip={inspected.clip}
@@ -646,6 +804,15 @@
   <SongFileBar {song} {onReplace} />
 
   <div class="dock">
+    {#if song.chordPads.length > 0}
+      <ChordPads
+        pads={song.chordPads}
+        heldIds={heldPadIds}
+        {onPadDown}
+        {onPadUp}
+        onRemove={onRemovePad}
+      />
+    {/if}
     <Keyboard
       {onNoteOn}
       {onNoteOff}
@@ -681,6 +848,16 @@
     margin: 0;
     color: var(--color-muted);
   }
+  .tools button {
+    font: inherit;
+    min-height: 2.75rem;
+    padding: 0.25rem 0.9rem;
+    color: var(--color-text);
+    background: var(--color-surface);
+    border: 1px solid var(--color-border);
+    border-radius: 0.5rem;
+    cursor: pointer;
+  }
   .volume {
     display: flex;
     flex-wrap: wrap;
@@ -705,6 +882,9 @@
     padding: 0.75rem 1rem calc(0.75rem + env(safe-area-inset-bottom));
     background: var(--color-bg);
     border-top: 1px solid var(--color-border);
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
   }
   @media (max-width: 600px) {
     main {

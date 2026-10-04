@@ -1,29 +1,28 @@
-# Today (tier 5): 2026-10-03, handoff (phase A built)
+# Today (tier 5): 2026-10-04, handoff (phase B built)
 
 **Read this first, then [ProjectState](../3-state/ProjectState.md) and [the arranger plan](../plans/arranger-timeline.md).**
 
 ## Where things are
 
-- **Live site** (https://ajw2003.github.io/AjsMusicAndSfxTools/) = `main` = the chiptune loop prototype
-  (PR #69). The owner tested it and said it "works beautifully". Issues #1–#5, #7–#14, #25, #43–#50, #52, #53,
-  #68 were closed at the owner's request.
-- **Branch `ccr-140da2ff-xt2m7i`** is ahead of `main` and NOT merged:
-  - Arranger plan, roadmap M9, decisions entry, issues #70 (parent) and #71–#82.
-  - **#71 done (not merged):** song format v2 with clips + automatic upgrade of old songs/autosaves
-    (commit e796095). Re-checked by the parent: lint/format/types clean, 95 unit tests, browser test
-    `song-v2.cjs` 23/23 and `files-v2.cjs` all pass. The app still looks and behaves like the prototype.
-- **#72/#73/#76 done (not merged), 2026-10-03:** the WIP patch was applied, finished and the patch file deleted.
-  Timeline view, playback from the playhead, Loop toggle, New clip, record into clips, whole-song export.
-  Checked: types/lint/format clean, 102 unit tests, build, browser check `e2e/timeline.cjs` 22/22 twice.
-  Run it with `npm run test:e2e` (Playwright is now a dev dependency and the check runs in CI).
-- **#74/#75 done (not merged), 2026-10-03:** drag clips with snap; clip inspector, split, duplicate, copy/paste,
-  delete, keyboard shortcuts. **Phase A (#71–#76) is complete on the branch.** `e2e/timeline.cjs`: 53/53 (incl. emulated touch).
+- **Live site** (https://ajw2003.github.io/AjsMusicAndSfxTools/) = `main` = **arranger phase A** (PR #83, merged
+  by the owner 2026-10-03; both CI runs green including the new Playwright browser checks; Pages deploy
+  succeeded). Not opened in a browser by the agent: this environment's network policy blocks `github.io`.
+- Phase A = song format v2 (#71), playback from the playhead + loop toggle (#72), timeline view (#73), clip
+  dragging with snap (#74), clip inspector/split/duplicate/copy/paste (#75), recording into clips (#76).
+  Issues #70–#76 are still open: closing them is the owner's call after they've tried it.
+- Browser checks: `npm run test:e2e` (53 checks, Playwright 1.63.0, runs in CI).
+
+- **Phase B built on branch `ccr-140da2ff-xt2m7i`, not merged (2026-10-04):** chord builder (#77) and chord
+  pads (#78), plus two playback timing fixes (see ProjectState and Decisions). `npm run test:e2e` 62/62 twice.
+- **New issue #84:** second usability pass for dyslexia and ADHD (owner's request), under M4 (#34).
 
 ## Next session, in order
 
-1. Phase A pull request: opened with the owner's go-ahead. Get CI green, then merge **only if the owner says
-   so**: they have not yet answered whether the agent may merge each phase itself.
-2. Then phase B (#77 chord builder, #78 one-key chord pads), C (#79–#81 audio files), D (#82 microphone).
+1. Phase B pull request #85 is open (owner said yes). Get CI green; merge only if the owner says so.
+2. **#84 usability pass comes next, before phase C** (owner, 2026-10-04). Plan for the owner to review while
+   they test: `docs/plans/usability-pass.md`. "Before" screenshots: `docs/generated/usability/`. Wait for
+   answers to its five questions, then file one sub-issue of #84 per step and build.
+3. Then phase C: #79–#81 audio files, then D: #82 microphone.
 
 ## Open questions for the owner
 
