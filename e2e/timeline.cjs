@@ -584,6 +584,90 @@ async function chordPads(browser) {
   await context.close();
 }
 
+async function scrubbing(browser) {
+  const { context, page } = await start(browser, {
+    width: 1280,
+    height: 800,
+  });
+  await openSong(
+    page,
+    songFile(120, [clip("A", 16, 8, 4, [])]),
+    "scrub.ajsong.json",
+  );
+  const scrubAlong = async (locator, fromBeat, toBeat) => {
+    const box = await locator.boundingBox();
+    const y = box.y + box.height / 2;
+    // Default zoom is 24 px per beat; the box starts at beat 0.
+    await page.mouse.move(box.x + fromBeat * 24, y);
+    await page.mouse.down();
+    const seen = [];
+    for (let i = 1; i <= 4; i++) {
+      const beat = fromBeat + ((toBeat - fromBeat) * i) / 4;
+      await page.mouse.move(box.x + beat * 24, y, { steps: 3 });
+      seen.push(await position(page));
+    }
+    await page.mouse.up();
+    return seen;
+  };
+  const noSelection = () =>
+    page.evaluate(() => window.getSelection().toString() === "");
+
+  const ruler = page.getByRole("slider", { name: "Playhead" });
+  let seen = await scrubAlong(ruler, 2, 10);
+  check(
+    "dragging the ruler scrubs the playhead",
+    seen.length === 4 &&
+      new Set(seen).size === 4 &&
+      seen.at(-1) === "Bar 3 · Beat 3",
+    seen.join(" | "),
+  );
+  check("scrubbing the ruler selects no text", await noSelection());
+
+  // Empty lane space (the clip sits at beats 16–24), dragging right to left
+  // across the track header area's edge as well.
+  const lane = page.locator('[data-track-id="t1"]');
+  seen = await scrubAlong(lane, 12, 1);
+  check(
+    "dragging an empty lane scrubs the playhead",
+    seen.at(-1) === "Bar 1 · Beat 2",
+    seen.join(" | "),
+  );
+  check("scrubbing a lane selects no text", await noSelection());
+
+  // Drags that start on text (a track name, a bar number) select nothing.
+  for (const [what, start] of [
+    ["track name", page.locator(".head .name").first()],
+    ["bar number", page.locator(".ruler .label").nth(1)],
+  ]) {
+    const box = await start.boundingBox();
+    await page.mouse.move(box.x + 2, box.y + box.height / 2);
+    await page.mouse.down();
+    await page.mouse.move(box.x + 300, box.y + box.height / 2 + 40, {
+      steps: 6,
+    });
+    await page.mouse.up();
+    const selected = await page.evaluate(() =>
+      window.getSelection().toString(),
+    );
+    check(
+      `a drag from a ${what} selects no text`,
+      selected === "",
+      JSON.stringify(selected),
+    );
+  }
+
+  // Dragging the clip still moves the clip, not the playhead.
+  const before = await position(page);
+  await dragBy(page, "A", "move", 4);
+  const g = await geometry(page, "A");
+  check(
+    "dragging a clip still moves the clip, not the playhead",
+    g.start === 20 && (await position(page)) === before,
+    `clip at ${g.start}, playhead ${await position(page)}`,
+  );
+  await context.close();
+}
+
 /** Press Tab until `matches` is true for the focused element (no mouse). */
 async function tabTo(page, description, matches) {
   for (let i = 0; i < 80; i++) {
@@ -798,6 +882,7 @@ async function startPreview() {
     await touchDrags(browser);
     await chordBuilderClip(browser);
     await chordPads(browser);
+    await scrubbing(browser);
     await stretchedClipRepeats(browser);
     await loopRegion(browser);
     await wavCoversSong(browser);

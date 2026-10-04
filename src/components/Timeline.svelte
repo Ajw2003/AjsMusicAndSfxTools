@@ -212,7 +212,8 @@
   // While playing, page the view along so the playhead never leaves it.
   // A jump rather than a smooth scroll: calm by default.
   $effect(() => {
-    if (!follow || !scroller) return;
+    // Not while scrubbing: the view would jump out from under the pointer.
+    if (!follow || !scroller || scrub) return;
     const x = playhead * pxPerBeat;
     const lanesWidth = scroller.clientWidth - headerWidth();
     const left = scroller.scrollLeft;
@@ -234,6 +235,30 @@
     const x = e.clientX - el.getBoundingClientRect().left;
     // Ruler clicks land on the nearest beat: precise enough, easy to hit.
     return Math.round(pxToBeat(x, pxPerBeat));
+  }
+
+  /** A press-and-drag on the ruler or an empty lane moves the playhead. */
+  let scrub = $state<{ pointerId: number; el: HTMLElement } | null>(null);
+
+  function startScrub(e: PointerEvent): void {
+    // Clips handle their own drags.
+    if (e.button !== 0) return;
+    if ((e.target as HTMLElement).closest("[data-clip-id]")) return;
+    const el = e.currentTarget as HTMLElement;
+    // Stops the browser starting a text selection.
+    e.preventDefault();
+    el.setPointerCapture(e.pointerId);
+    scrub = { pointerId: e.pointerId, el };
+    onSeek(beatFromEvent(e, el));
+  }
+
+  function moveScrub(e: PointerEvent): void {
+    if (scrub?.pointerId !== e.pointerId) return;
+    onSeek(beatFromEvent(e, scrub.el));
+  }
+
+  function endScrub(e: PointerEvent): void {
+    if (scrub?.pointerId === e.pointerId) scrub = null;
   }
 
   function onRulerKeydown(e: KeyboardEvent): void {
@@ -357,7 +382,10 @@
         aria-valuemax={endBeat}
         aria-valuenow={playhead}
         aria-valuetext={positionLabel(playhead, bpb)}
-        onclick={(e) => onSeek(beatFromEvent(e, e.currentTarget))}
+        onpointerdown={startScrub}
+        onpointermove={moveScrub}
+        onpointerup={endScrub}
+        onpointercancel={endScrub}
         onkeydown={onRulerKeydown}
       >
         {#if region}
@@ -410,8 +438,18 @@
             role="listbox"
             tabindex="-1"
             aria-label="Clips on {track.name}"
-            onclick={(e) => {
+            onpointerdown={(e) => {
+              if ((e.target as HTMLElement).closest("[data-clip-id]")) return;
               onSelectClip(track.id, null);
+              // A finger swipe on a lane scrolls the timeline, so touch
+              // seeks with a tap (the click below) instead of scrubbing.
+              if (e.pointerType !== "touch") startScrub(e);
+            }}
+            onpointermove={moveScrub}
+            onpointerup={endScrub}
+            onpointercancel={endScrub}
+            onclick={(e) => {
+              if ((e.target as HTMLElement).closest("[data-clip-id]")) return;
               onSeek(beatFromEvent(e, e.currentTarget));
             }}
           >
@@ -627,6 +665,9 @@
     background: var(--color-bg);
   }
   .grid {
+    /* Dragging across the timeline scrubs; it never selects text. */
+    user-select: none;
+    -webkit-user-select: none;
     display: grid;
     grid-template-columns: var(--head) var(--width);
     width: max-content;
@@ -653,8 +694,10 @@
     position: relative;
     height: 1.75rem;
     border-bottom: 1px solid var(--color-border);
-    cursor: pointer;
+    cursor: ew-resize;
     overflow: hidden;
+    /* Dragging along the ruler scrubs, even with a finger. */
+    touch-action: none;
   }
   .ruler:focus-visible {
     outline-offset: -3px;
