@@ -68,15 +68,17 @@
 </section>
 
 <style>
+  /* One row that scrolls sideways, so pads never push the keyboard down. */
   ul {
     list-style: none;
     margin: 0;
-    padding: 0;
+    padding: 0 0 0.25rem;
     display: flex;
-    flex-wrap: wrap;
     gap: 0.5rem;
+    overflow-x: auto;
   }
   li {
+    flex: 0 0 auto;
     display: flex;
     align-items: stretch;
   }

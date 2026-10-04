@@ -25,6 +25,11 @@ focused clip do the same edits. `ClipInspector.svelte` has typed fields for ever
 copy, paste and delete use the existing commands. Copy/paste uses an in-app clipboard, not the system one, and
 pastes on the selected track at the playhead. Shortcuts are Ctrl+E/D/C/V and Delete, matched by physical key.
 
+**Scrubbing, 2026-10-04 (owner's request):** pressing and dragging on the ruler, or on empty lane space with a mouse
+or pen, moves the playhead continuously (`startScrub`/`moveScrub` in `Timeline.svelte`, pointer-captured); presses
+that start on a clip are left to the clip's own drag. On touch, the ruler scrubs but a lane swipe still scrolls the
+timeline (a tap seeks). The whole timeline grid has `user-select: none`, so drags never select text.
+
 **Chords, 2026-10-04 (#77, #78):** `src/lib/song/chords.ts` holds the theory: the seven chords of a major or minor
 key with roman numerals, chord names (sharps only), root-position voicings with the root between C3 and B3, common
 progressions, and `progressionContent`, which lays chords back to back as notes plus chord **labels**. A note

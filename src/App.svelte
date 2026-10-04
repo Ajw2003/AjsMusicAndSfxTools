@@ -1,12 +1,16 @@
 <script lang="ts">
-  import { onMount } from "svelte";
+  import { onMount, tick as afterRender } from "svelte";
   import ChordBuilder from "./components/ChordBuilder.svelte";
   import ChordPads from "./components/ChordPads.svelte";
   import ClipInspector from "./components/ClipInspector.svelte";
   import Keyboard from "./components/Keyboard.svelte";
+  import RecordingSettings from "./components/RecordingSettings.svelte";
   import SongFileBar from "./components/SongFileBar.svelte";
+  import SongSettings from "./components/SongSettings.svelte";
   import StartOverlay from "./components/StartOverlay.svelte";
   import Timeline from "./components/Timeline.svelte";
+  import TimelineSettings from "./components/TimelineSettings.svelte";
+  import TrackSettings from "./components/TrackSettings.svelte";
   import TransportBar from "./components/TransportBar.svelte";
   import { getPreset, type ChiptuneSoundId } from "./lib/audio/chiptune";
   import { engine } from "./lib/audio/engine";
@@ -70,7 +74,81 @@
   let recordRegion: LoopRegion | null = null;
   /** The copied clip (a deep copy), pasted with a fresh id. */
   let clipboard = $state<Clip | null>(null);
-  let isChordBuilderOpen = $state(false);
+  let snapGrid = $state(1);
+
+  // ---- Panels: one open at a time, remembered in this browser ----
+
+  type PanelId =
+    "track" | "clip" | "chords" | "recording" | "timeline" | "song" | "files";
+  const PANELS: { id: PanelId; label: string }[] = [
+    { id: "track", label: "Track" },
+    { id: "clip", label: "Clip" },
+    { id: "chords", label: "Chord builder" },
+    { id: "recording", label: "Recording" },
+    { id: "timeline", label: "Timeline" },
+    { id: "song", label: "Song" },
+    { id: "files", label: "Save & export" },
+  ];
+  const PANEL_KEY = "ajs-music.ui.panel";
+  const KEYBOARD_KEY = "ajs-music.ui.keyboard-hidden";
+
+  /** Read a saved UI choice; storage can be missing or blocked. */
+  function loadUi(key: string): string | null {
+    try {
+      return localStorage.getItem(key);
+    } catch (error) {
+      console.warn(`Could not read ${key}:`, error);
+      return null;
+    }
+  }
+  function saveUi(key: string, value: string | null): void {
+    try {
+      if (value === null) localStorage.removeItem(key);
+      else localStorage.setItem(key, value);
+    } catch (error) {
+      // A layout preference is a convenience; losing it must not break anything.
+      console.warn(`Could not save ${key}:`, error);
+    }
+  }
+
+  const savedPanel = loadUi(PANEL_KEY);
+  let openPanel = $state<PanelId | null>(
+    PANELS.some((p) => p.id === savedPanel) ? (savedPanel as PanelId) : null,
+  );
+  let isKeyboardHidden = $state(loadUi(KEYBOARD_KEY) === "true");
+
+  /**
+   * Open a panel (or close all with null). `reveal` scrolls it into view;
+   * it's off when a clip click opens the Clip panel, so the page doesn't
+   * move the clip out from under the pointer.
+   */
+  async function setPanel(id: PanelId | null, reveal = true): Promise<void> {
+    const isNew = id !== null && id !== openPanel;
+    openPanel = id;
+    saveUi(PANEL_KEY, id);
+    if (!isNew || !reveal) return;
+    // A panel opening behind the keyboard dock would look like nothing
+    // happened, so bring it into view. A jump, not a smooth scroll.
+    await afterRender();
+    const area = document.getElementById("panel-area");
+    const dock = document.querySelector(".dock");
+    if (!area || !dock) return;
+    const box = area.getBoundingClientRect();
+    const hiddenBy = box.bottom - dock.getBoundingClientRect().top;
+    if (hiddenBy <= 0) return;
+    // Show its bottom edge if it fits, otherwise at least its top.
+    const by = Math.min(hiddenBy + 8, box.top - 8);
+    if (by > 0) window.scrollBy({ top: by, behavior: "instant" });
+  }
+
+  function togglePanel(id: PanelId): void {
+    void setPanel(openPanel === id ? null : id);
+  }
+
+  function toggleKeyboard(): void {
+    isKeyboardHidden = !isKeyboardHidden;
+    saveUi(KEYBOARD_KEY, String(isKeyboardHidden));
+  }
   let heldPadIds = $state<string[]>([]);
   let isPhone = $state(false);
 
@@ -211,6 +289,8 @@
   function onSelectClip(trackId: string, clipId: string | null): void {
     selectTrack(trackId);
     selectedClipId = clipId;
+    // Clicking a clip always shows that clip: predictable beats clever.
+    if (clipId) void setPanel("clip", false);
   }
 
   /** New empty clip on the selected track, at the bar under the playhead. */
@@ -586,9 +666,28 @@
     history.redo();
   }
 
-  function onMasterInput(e: Event & { currentTarget: HTMLInputElement }): void {
-    masterDb = Number(e.currentTarget.value);
+  function onMasterDb(db: number): void {
+    masterDb = db;
     engine.setMasterVolumeDb(masterDb);
+  }
+
+  function onClearTrack(id: string): void {
+    const track = history.song.tracks.find((t) => t.id === id);
+    if (!track) return;
+    history.apply({
+      type: "batch",
+      commands: track.clips.map((c) => ({
+        type: "clearClip" as const,
+        clipId: c.id,
+      })),
+    });
+  }
+
+  /** The ▾ on a track header: show that track's settings, or hide them. */
+  function onToggleTrackSettings(id: string): void {
+    const isOpenForIt = openPanel === "track" && selectedId === id;
+    selectTrack(id);
+    void setPanel(isOpenForIt ? null : "track");
   }
 
   // ---- Chord pads ----
@@ -691,29 +790,15 @@
   </header>
 
   <TransportBar
-    bpm={song.bpm}
-    {newClipBars}
     {beat}
-    {loopOn}
     {isPlaying}
     {isCountingIn}
     {isRecording}
     {canUndo}
     {canRedo}
-    {metronomeOn}
-    {quantizeGrid}
     {onPlayPause}
     {onBackToStart}
-    {onLoop}
-    {onNewClip}
     {onRecordToggle}
-    onBpm={(bpm) => history.apply({ type: "setBpm", bpm })}
-    onNewClipBars={(bars) => (newClipBars = bars)}
-    onMetronome={(on) => (metronomeOn = on)}
-    onQuantize={(g) => {
-      quantizeGrid = g;
-      recorder.quantizeGrid = g;
-    }}
     {onUndo}
     {onRedo}
   />
@@ -725,42 +810,62 @@
     playhead={beat}
     follow={isPlaying && !isCountingIn}
     {loopOn}
-    maxTracks={MAX_TRACKS}
+    {snapGrid}
+    settingsTrackId={openPanel === "track" ? selected.id : null}
     onSelectTrack={selectTrack}
     {onSelectClip}
     {onSeek}
-    {onLoopRegion}
     {onClipEdit}
     {onUpdate}
-    onClear={(id) => {
-      const track = song.tracks.find((t) => t.id === id);
-      if (!track) return;
-      history.apply({
-        type: "batch",
-        commands: track.clips.map((c) => ({
-          type: "clearClip" as const,
-          clipId: c.id,
-        })),
-      });
-    }}
-    {onRemove}
-    {onAdd}
+    {onToggleTrackSettings}
   />
 
-  <div class="tools">
-    <button
-      type="button"
-      aria-expanded={isChordBuilderOpen}
-      aria-controls="chord-builder"
-      onclick={() => (isChordBuilderOpen = !isChordBuilderOpen)}
-    >
-      Chord builder <span aria-hidden="true"
-        >{isChordBuilderOpen ? "▴" : "▾"}</span
+  <nav class="panel-tabs" aria-label="Panels">
+    {#each PANELS as p (p.id)}
+      <button
+        type="button"
+        aria-expanded={openPanel === p.id}
+        aria-controls="panel-area"
+        onclick={() => togglePanel(p.id)}
       >
-    </button>
-  </div>
-  {#if isChordBuilderOpen}
-    <div id="chord-builder">
+        {p.label}
+      </button>
+    {/each}
+  </nav>
+
+  <div id="panel-area">
+    {#if openPanel === "track"}
+      <TrackSettings
+        track={selected}
+        trackCount={song.tracks.length}
+        maxTracks={MAX_TRACKS}
+        onUpdate={(changes) => onUpdate(selected.id, changes)}
+        onClear={() => onClearTrack(selected.id)}
+        onRemove={() => onRemove(selected.id)}
+        {onAdd}
+      />
+    {:else if openPanel === "clip"}
+      {#if inspected}
+        <ClipInspector
+          clip={inspected.clip}
+          trackColour={getPreset(inspected.track.sound).colour}
+          beatsPerBar={song.beatsPerBar}
+          canSplit={canSplitAt(inspected.clip, beat)}
+          canPaste={clipboard !== null &&
+            clipboard.content.kind === selected.kind}
+          onChange={onClipChange}
+          {onSplit}
+          {onDuplicate}
+          {onCopy}
+          {onPaste}
+          onDelete={onDeleteClip}
+        />
+      {:else}
+        <p class="panel hint-only">
+          Click a clip on the timeline to change it here.
+        </p>
+      {/if}
+    {:else if openPanel === "chords"}
       <ChordBuilder
         trackName={selected.kind === "notes" ? selected.name : null}
         beatsPerBar={song.beatsPerBar}
@@ -769,41 +874,51 @@
         onMakeClip={onMakeChordClip}
         {onSavePad}
       />
-    </div>
-  {/if}
-
-  {#if inspected}
-    <ClipInspector
-      clip={inspected.clip}
-      trackColour={getPreset(inspected.track.sound).colour}
-      beatsPerBar={song.beatsPerBar}
-      canSplit={canSplitAt(inspected.clip, beat)}
-      canPaste={clipboard !== null && clipboard.content.kind === selected.kind}
-      onChange={onClipChange}
-      {onSplit}
-      {onDuplicate}
-      {onCopy}
-      {onPaste}
-      onDelete={onDeleteClip}
-    />
-  {/if}
-
-  <label class="volume">
-    Master volume
-    <input
-      type="range"
-      min="-40"
-      max="0"
-      step="1"
-      value={masterDb}
-      oninput={onMasterInput}
-    />
-    <output>{masterDb} dB</output>
-  </label>
-
-  <SongFileBar {song} {onReplace} />
+    {:else if openPanel === "recording"}
+      <RecordingSettings
+        {newClipBars}
+        {quantizeGrid}
+        onNewClipBars={(bars) => (newClipBars = bars)}
+        {onNewClip}
+        onQuantize={(g) => {
+          quantizeGrid = g;
+          recorder.quantizeGrid = g;
+        }}
+      />
+    {:else if openPanel === "timeline"}
+      <TimelineSettings
+        {loopOn}
+        region={song.loopRegion}
+        beatsPerBar={song.beatsPerBar}
+        {snapGrid}
+        {onLoop}
+        {onLoopRegion}
+        onSnap={(g) => (snapGrid = g)}
+      />
+    {:else if openPanel === "song"}
+      <SongSettings
+        bpm={song.bpm}
+        {metronomeOn}
+        {masterDb}
+        onBpm={(bpm) => history.apply({ type: "setBpm", bpm })}
+        onMetronome={(on) => (metronomeOn = on)}
+        {onMasterDb}
+      />
+    {:else if openPanel === "files"}
+      <SongFileBar {song} {onReplace} />
+    {/if}
+  </div>
 
   <div class="dock">
+    <button
+      type="button"
+      class="keyboard-toggle"
+      aria-expanded={!isKeyboardHidden}
+      aria-controls="keyboard"
+      onclick={toggleKeyboard}
+    >
+      {isKeyboardHidden ? "Show keyboard" : "Hide keyboard"}
+    </button>
     {#if song.chordPads.length > 0}
       <ChordPads
         pads={song.chordPads}
@@ -813,14 +928,16 @@
         onRemove={onRemovePad}
       />
     {/if}
-    <Keyboard
-      {onNoteOn}
-      {onNoteOff}
-      colour={preset.colour}
-      drums={isDrums}
-      octaves={isPhone && !isDrums ? 1 : 2}
-      bind:octave
-    />
+    <div id="keyboard" hidden={isKeyboardHidden}>
+      <Keyboard
+        {onNoteOn}
+        {onNoteOff}
+        colour={preset.colour}
+        drums={isDrums}
+        octaves={isPhone && !isDrums ? 1 : 2}
+        bind:octave
+      />
+    </div>
   </div>
 </main>
 
@@ -848,7 +965,13 @@
     margin: 0;
     color: var(--color-muted);
   }
-  .tools button {
+  .panel-tabs {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+  }
+  .panel-tabs button,
+  .keyboard-toggle {
     font: inherit;
     min-height: 2.75rem;
     padding: 0.25rem 0.9rem;
@@ -858,18 +981,17 @@
     border-radius: 0.5rem;
     cursor: pointer;
   }
-  .volume {
-    display: flex;
-    flex-wrap: wrap;
-    align-items: center;
-    gap: 0.75rem;
+  .panel-tabs button[aria-expanded="true"] {
+    border-color: var(--color-accent);
+    box-shadow: inset 0 0 0 2px var(--color-accent);
+    font-weight: 600;
   }
-  .volume input {
-    flex: 1 1 10rem;
-    min-height: 2.75rem;
+  .keyboard-toggle {
+    align-self: flex-start;
+    min-height: 2.25rem;
+    font-size: 0.9rem;
   }
-  .volume output {
-    min-width: 4rem;
+  .hint-only {
     color: var(--color-muted);
   }
   /* Pinned to the bottom of the viewport; stays in the flow, so nothing

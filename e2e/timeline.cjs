@@ -1,4 +1,5 @@
-// Browser checks for the arranger: phase A (#72–#76) and phase B (#77, #78).
+// Browser checks: arranger phases A (#72–#76) and B (#77, #78), and the
+// usability pass (#84).
 //
 // Run with `npm run test:e2e`: it builds the app, serves the build on a free
 // port and drives it in Chromium (install it once: `npx playwright install
@@ -88,7 +89,16 @@ async function start(browser, viewport) {
   return { context, page };
 }
 
+/** Open a panel by its tab (Track, Clip, Chord builder, …) unless it is open. */
+async function openPanel(page, label) {
+  const tab = page
+    .getByRole("navigation", { name: "Panels" })
+    .getByRole("button", { name: label, exact: true });
+  if ((await tab.getAttribute("aria-expanded")) !== "true") await tab.click();
+}
+
 async function openSong(page, json, name) {
+  await openPanel(page, "Save & export");
   const file = path.join(os.tmpdir(), name);
   fs.writeFileSync(file, json);
   await page.getByLabel("Open project file").setInputFiles(file);
@@ -99,6 +109,7 @@ const position = (page) => page.getByLabel("Position").textContent();
 const bpmInput = (page) => page.getByLabel("BPM");
 
 async function setBpm(page, bpm) {
+  await openPanel(page, "Song");
   await bpmInput(page).fill(String(bpm));
   await bpmInput(page).press("Enter");
   await page.locator("body").click({ position: { x: 2, y: 2 } });
@@ -118,7 +129,7 @@ async function recordIntoClip(browser) {
     "clicked clip is selected",
     (await clips.first().getAttribute("aria-selected")) === "true",
   );
-  await page.getByRole("button", { name: "Record" }).click();
+  await page.getByRole("button", { name: "Record", exact: true }).click();
   await page.waitForTimeout(1000 + 400); // count-in, then into the loop
   await page.keyboard.down("KeyA");
   await page.waitForTimeout(200);
@@ -128,7 +139,7 @@ async function recordIntoClip(browser) {
     "a recorded pass lands in the clip",
     (await page.getByTestId("note-summary").first().textContent()) === "1 note",
   );
-  await page.getByRole("button", { name: "Record" }).click();
+  await page.getByRole("button", { name: "Record", exact: true }).click();
   await page.getByRole("button", { name: "Pause" }).click();
   const paused = await position(page);
   await page.waitForTimeout(400);
@@ -155,6 +166,7 @@ async function recordIntoClip(browser) {
     await position(page),
   );
 
+  await openPanel(page, "Recording");
   await page.getByRole("button", { name: "New clip" }).click();
   check("New clip adds a clip", (await clips.count()) === 2);
   const label = await clips.nth(1).getAttribute("aria-label");
@@ -213,6 +225,7 @@ async function loopRegion(browser) {
     }),
     "loop.ajsong.json",
   );
+  await openPanel(page, "Timeline");
   await page.getByRole("button", { name: "Loop" }).click();
   await page.getByRole("button", { name: "Play", exact: true }).click();
   const seen = new Set();
@@ -244,6 +257,7 @@ async function wavCoversSong(browser) {
     "export.ajsong.json",
   );
   const download = page.waitForEvent("download");
+  await openPanel(page, "Save & export");
   await page.getByRole("button", { name: "Download WAV" }).click();
   const file = await (await download).path();
   const bytes = fs.readFileSync(file);
@@ -382,6 +396,7 @@ async function dragClips(browser) {
   check("left edge trims to the beat", g.start === 5 && g.length === 3, at(g));
   await undo();
 
+  await openPanel(page, "Timeline");
   await page.getByLabel("Snap").selectOption({ label: "Bar" });
   await dragBy(page, "A", "move", 2.6);
   g = await geometry(page, "A");
@@ -445,7 +460,7 @@ async function chordBuilderClip(browser) {
     height: 800,
   });
   await openSong(page, songFile(240, []), "chords.ajsong.json");
-  await page.getByRole("button", { name: /Chord builder/ }).click();
+  await openPanel(page, "Chord builder");
   const builder = page.getByRole("region", { name: "Chord builder" });
   await builder.getByLabel(/^Key/).selectOption({ label: "D" });
   await builder
@@ -519,7 +534,7 @@ async function chordPads(browser) {
     songFile(240, [clip("A", 0, 16, 16, [])]),
     "pads.ajsong.json",
   );
-  await page.getByRole("button", { name: /Chord builder/ }).click();
+  await openPanel(page, "Chord builder");
   const builder = page.getByRole("region", { name: "Chord builder" });
   await builder
     .getByLabel("Start from")
@@ -543,7 +558,7 @@ async function chordPads(browser) {
 
   // Record the four pads by number key into clip A (16 beats = 4 s).
   await page.locator('[data-clip-id="A"]').click();
-  await page.getByRole("button", { name: "Record" }).click();
+  await page.getByRole("button", { name: "Record", exact: true }).click();
   await page.waitForTimeout(1000 + 200);
   for (const key of ["Digit1", "Digit2", "Digit3", "Digit4"]) {
     await page.keyboard.down(key);
@@ -552,7 +567,7 @@ async function chordPads(browser) {
     await page.waitForTimeout(500);
   }
   await page.waitForTimeout(1200); // past the wrap: the pass is committed
-  await page.getByRole("button", { name: "Record" }).click();
+  await page.getByRole("button", { name: "Record", exact: true }).click();
   await page.getByRole("button", { name: "Pause" }).click();
   const saved = await savedSong(page);
   const notes = saved.tracks[0].clips[0].content.notes;
@@ -582,6 +597,159 @@ async function chordPads(browser) {
   await pads.getByRole("button", { name: "Remove pad F" }).click();
   check("a pad can be removed", (await padNames()).length === 3);
   await context.close();
+}
+
+async function scrubbing(browser) {
+  const { context, page } = await start(browser, {
+    width: 1280,
+    height: 800,
+  });
+  await openSong(
+    page,
+    songFile(120, [clip("A", 16, 8, 4, [])]),
+    "scrub.ajsong.json",
+  );
+  const scrubAlong = async (locator, fromBeat, toBeat) => {
+    const box = await locator.boundingBox();
+    const y = box.y + box.height / 2;
+    // Default zoom is 24 px per beat; the box starts at beat 0.
+    await page.mouse.move(box.x + fromBeat * 24, y);
+    await page.mouse.down();
+    const seen = [];
+    for (let i = 1; i <= 4; i++) {
+      const beat = fromBeat + ((toBeat - fromBeat) * i) / 4;
+      await page.mouse.move(box.x + beat * 24, y, { steps: 3 });
+      seen.push(await position(page));
+    }
+    await page.mouse.up();
+    return seen;
+  };
+  const noSelection = () =>
+    page.evaluate(() => window.getSelection().toString() === "");
+
+  const ruler = page.getByRole("slider", { name: "Playhead" });
+  let seen = await scrubAlong(ruler, 2, 10);
+  check(
+    "dragging the ruler scrubs the playhead",
+    seen.length === 4 &&
+      new Set(seen).size === 4 &&
+      seen.at(-1) === "Bar 3 · Beat 3",
+    seen.join(" | "),
+  );
+  check("scrubbing the ruler selects no text", await noSelection());
+
+  // Empty lane space (the clip sits at beats 16–24), dragging right to left
+  // across the track header area's edge as well.
+  const lane = page.locator('[data-track-id="t1"]');
+  seen = await scrubAlong(lane, 12, 1);
+  check(
+    "dragging an empty lane scrubs the playhead",
+    seen.at(-1) === "Bar 1 · Beat 2",
+    seen.join(" | "),
+  );
+  check("scrubbing a lane selects no text", await noSelection());
+
+  // Drags that start on text (a track name, a bar number) select nothing.
+  for (const [what, start] of [
+    ["track name", page.locator(".head .name").first()],
+    ["bar number", page.locator(".ruler .label").nth(1)],
+  ]) {
+    const box = await start.boundingBox();
+    await page.mouse.move(box.x + 2, box.y + box.height / 2);
+    await page.mouse.down();
+    await page.mouse.move(box.x + 300, box.y + box.height / 2 + 40, {
+      steps: 6,
+    });
+    await page.mouse.up();
+    const selected = await page.evaluate(() =>
+      window.getSelection().toString(),
+    );
+    check(
+      `a drag from a ${what} selects no text`,
+      selected === "",
+      JSON.stringify(selected),
+    );
+  }
+
+  // Dragging the clip still moves the clip, not the playhead.
+  const before = await position(page);
+  await dragBy(page, "A", "move", 4);
+  const g = await geometry(page, "A");
+  check(
+    "dragging a clip still moves the clip, not the playhead",
+    g.start === 20 && (await position(page)) === before,
+    `clip at ${g.start}, playhead ${await position(page)}`,
+  );
+  await context.close();
+}
+
+async function calmLayout(browser) {
+  for (const viewport of [
+    { width: 1280, height: 800 },
+    { width: 390, height: 844 },
+  ]) {
+    const where = `${viewport.width}px`;
+    const { context, page } = await start(browser, viewport);
+    // Visible = inside the window and above the keyboard dock.
+    const unhidden = (locator) =>
+      locator.evaluate((el) => {
+        const r = el.getBoundingClientRect();
+        const dockTop = document
+          .querySelector(".dock")
+          .getBoundingClientRect().top;
+        return r.top >= 0 && r.bottom <= Math.min(dockTop, window.innerHeight);
+      });
+    const main = [
+      page.getByRole("button", { name: "Play", exact: true }),
+      page.getByRole("button", { name: "Back to start" }),
+      page.getByRole("button", { name: "Record", exact: true }),
+      page.getByLabel("Position"),
+      page.locator("[data-clip-id]").first(),
+    ];
+    const seen = [];
+    for (const l of main) seen.push(await unhidden(l));
+    check(
+      `${where}: first screen shows the main controls and the song without scrolling`,
+      seen.every(Boolean),
+      seen.join(","),
+    );
+    const settings = await page
+      .locator("#panel-area :is(input, select, button)")
+      .count();
+    check(
+      `${where}: no settings panel is open at first`,
+      settings === 0,
+      `${settings} controls`,
+    );
+
+    await openPanel(page, "Song");
+    await openPanel(page, "Recording");
+    const open = await page
+      .getByRole("navigation", { name: "Panels" })
+      .locator('button[aria-expanded="true"]')
+      .allTextContents();
+    check(
+      `${where}: only one panel is open at a time`,
+      open.length === 1 && open[0].trim() === "Recording",
+      open.join(","),
+    );
+    await page.getByRole("button", { name: "Hide keyboard" }).click();
+    await page.reload();
+    await page.getByRole("button", { name: /press any key to start/i }).click();
+    const reopened = await page
+      .getByRole("navigation", { name: "Panels" })
+      .locator('button[aria-expanded="true"]')
+      .allTextContents();
+    check(
+      `${where}: the open panel and hidden keyboard are remembered`,
+      reopened.join() === "Recording" &&
+        (await page.getByRole("button", { name: "Show keyboard" }).count()) ===
+          1 &&
+        !(await page.locator("#keyboard").isVisible()),
+      reopened.join(),
+    );
+    await context.close();
+  }
 }
 
 /** Press Tab until `matches` is true for the focused element (no mouse). */
@@ -798,6 +966,8 @@ async function startPreview() {
     await touchDrags(browser);
     await chordBuilderClip(browser);
     await chordPads(browser);
+    await scrubbing(browser);
+    await calmLayout(browser);
     await stretchedClipRepeats(browser);
     await loopRegion(browser);
     await wavCoversSong(browser);
