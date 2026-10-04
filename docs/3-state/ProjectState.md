@@ -91,6 +91,13 @@ Plan: `docs/plans/arranger-timeline.md`. Handoff detail: `docs/5-today/Today.md`
   checks (#90). Checked: format, lint, types, 128 unit tests, `npm run test:e2e` 189/189 ("ALL PASS"), run at
   least twice per step; axe reports 0 issues of any level on every scanned screen. Screenshots and the axe table:
   `docs/generated/usability/README.md`.
+- **Merged 2026-10-04 (PR #92).** The owner then tried it on a phone and found it scales poorly (#93): with
+  larger text the keyboard covered the timeline and drum names broke letter by letter. Fixed on branch
+  `claude/modest-mendel-kfiuw7`: drum names shown once per run of keys, labels never wrap, piano height on phones
+  in px, Hide keyboard in the keyboard row, tips start hidden on phones, recording bar by the keys on phones.
+  Checked: `npm run test:e2e` 201/201 ("ALL PASS") three runs in a row, including 12 new phone checks at
+  412 px and 360 px. Two test races found on the way were fixed (loop sampling before playback starts; count-in
+  read after it ended). Not yet on the owner's phone.
 - **Not checked:** a try-out by someone with dyslexia or ADHD (the owner); a real screen reader; heard by a
   person. Known rough edges: the count-in number briefly covers the timeline; black-key labels stack
   ("G" over "#") with OpenDyslexic + Larger + Relaxed on a phone; track and master volume show a bare number.

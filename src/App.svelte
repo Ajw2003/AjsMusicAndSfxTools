@@ -113,7 +113,14 @@
   let openPanel = $state<PanelId | null>(
     PANELS.some((p) => p.id === savedPanel) ? (savedPanel as PanelId) : null,
   );
-  let isTipsHidden = $state(loadUi(TIPS_KEY) === "true");
+  // With no saved choice, phones start with the tips hidden: the screen is
+  // too short for tips, transport and timeline above the keyboard.
+  const savedTips = loadUi(TIPS_KEY);
+  let isTipsHidden = $state(
+    savedTips === null
+      ? window.matchMedia("(max-width: 600px)").matches
+      : savedTips === "true",
+  );
   let isChordHintDone = $state(loadUi(HINT_CHORDS_KEY) === "true");
   let isTimelineHintDone = $state(loadUi(HINT_TIMELINE_KEY) === "true");
   let isKeyboardHidden = $state(loadUi(KEYBOARD_KEY) === "true");
@@ -146,9 +153,15 @@
     void setPanel(openPanel === id ? null : id);
   }
 
-  function toggleKeyboard(): void {
+  async function toggleKeyboard(): Promise<void> {
     isKeyboardHidden = !isKeyboardHidden;
     saveUi(KEYBOARD_KEY, String(isKeyboardHidden));
+    // The button is drawn in a different place when the keyboard is shown
+    // (in its top row) and hidden (on its own), so keep focus on it.
+    await afterRender();
+    document
+      .querySelector<HTMLElement>(".keyboard-toggle:not([hidden] *)")
+      ?.focus();
   }
   let heldPadIds = $state<string[]>([]);
   let isPhone = $state(false);
@@ -827,14 +840,17 @@
 
 <main>
   <!-- Space is always reserved, so the bar appearing never moves the page. -->
-  <div class="rec-slot">
+  {#snippet recBar()}
     {#if recordingInto !== null}
       <div class="rec-bar" role="status">
         <span class="rec-dot" aria-hidden="true"></span>
         Recording into {recordingInto} — press Record to stop
       </div>
     {/if}
-  </div>
+  {/snippet}
+  {#if !isPhone}
+    <div class="rec-slot">{@render recBar()}</div>
+  {/if}
   <header>
     <h1>AJ's Music & SFX Tools</h1>
     {#if !isTipsHidden}
@@ -1028,7 +1044,7 @@
     {/if}
   </div>
 
-  <div class="dock">
+  {#snippet keyboardToggle()}
     <button
       type="button"
       class="keyboard-toggle"
@@ -1038,6 +1054,13 @@
     >
       {isKeyboardHidden ? "Show keyboard" : "Hide keyboard"}
     </button>
+  {/snippet}
+  <div class="dock">
+    <!-- On a phone the bar sits by the keys, so it never covers the page. -->
+    {#if isPhone}{@render recBar()}{/if}
+    {#if isKeyboardHidden}
+      {@render keyboardToggle()}
+    {/if}
     {#if song.chordPads.length > 0}
       <ChordPads
         pads={song.chordPads}
@@ -1055,6 +1078,7 @@
         drums={isDrums}
         octaves={isPhone && !isDrums ? 1 : 2}
         bind:octave
+        controls={keyboardToggle}
       />
     </div>
   </div>
@@ -1229,6 +1253,13 @@
     main {
       padding: 0.75rem 0.75rem 0;
       gap: 0.75rem;
+    }
+    h1 {
+      font-size: 1.25rem;
+    }
+    .rec-bar {
+      position: static;
+      margin: -0.5rem -0.75rem 0;
     }
     .dock {
       margin: auto -0.75rem 0;

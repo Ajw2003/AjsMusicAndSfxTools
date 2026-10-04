@@ -229,6 +229,16 @@ async function loopRegion(browser) {
   await openPanel(page, "Timeline");
   await page.getByRole("button", { name: "Loop" }).click();
   await page.getByRole("button", { name: "Play", exact: true }).click();
+  // Playback starts 100 ms after Play (the look-ahead), and until then the
+  // position still shows the old playhead, so start sampling once it moves.
+  await page.waitForFunction(
+    () =>
+      document
+        .querySelector('[aria-label="Position"]')
+        ?.textContent?.startsWith("Bar 2"),
+    null,
+    { timeout: 2000 },
+  );
   const seen = new Set();
   for (let i = 0; i < 25; i++) {
     seen.add(await position(page));
@@ -944,6 +954,88 @@ async function touchDrags(browser) {
 }
 
 /** Reading settings (#88): fonts, text size, spacing, saved, nothing under 14px. */
+// Owner report 2026-10-04: on a phone with larger text the keyboard dock
+// covered the whole timeline and drum names broke one letter per line.
+async function phoneLargeText(browser) {
+  for (const [size, width, height] of [
+    ["large", 412, 915],
+    ["larger", 412, 915],
+    ["large", 360, 740],
+  ]) {
+    const where = `${width}px ${size} text`;
+    const context = await browser.newContext({
+      viewport: { width, height },
+      isMobile: true,
+      hasTouch: true,
+    });
+    const page = await context.newPage();
+    page.on("pageerror", (e) => check("no page errors", false, e.message));
+    await page.addInitScript((s) => {
+      localStorage.setItem("ajs-music.ui.text-size", s);
+    }, size);
+    await page.goto(URL);
+    await page.getByRole("button", { name: /press any key to start/i }).click();
+    await page.waitForTimeout(300);
+    const layout = () =>
+      page.evaluate(() => {
+        const dock = document.querySelector(".dock").getBoundingClientRect();
+        const lanes = document
+          .querySelector(".track-lane, .lane, [data-track-id]")
+          ?.getBoundingClientRect();
+        const labels = [...document.querySelectorAll(".piano .note")]
+          .filter((el) => el.textContent.trim())
+          .map((el) => {
+            const r = el.getBoundingClientRect();
+            const line = parseFloat(getComputedStyle(el).lineHeight);
+            return {
+              text: el.textContent,
+              lines: Math.round(r.height / line),
+              right: r.right,
+            };
+          });
+        return {
+          dockTop: dock.top,
+          laneTop: lanes?.top ?? Infinity,
+          labels,
+          scrollWidth: document.documentElement.scrollWidth,
+        };
+      });
+    let m = await layout();
+    check(
+      `${where}: the first track is visible above the keyboard`,
+      m.laneTop < m.dockTop,
+      `track top ${Math.round(m.laneTop)}, keyboard top ${Math.round(m.dockTop)}`,
+    );
+    check(
+      `${where}: note names stay on one line`,
+      m.labels.every((l) => l.lines <= 1),
+      m.labels
+        .filter((l) => l.lines > 1)
+        .map((l) => l.text)
+        .join(" ") || "all one line",
+    );
+    // Drum track: each drum named once, whole word, inside the screen.
+    const tabs = page.getByRole("navigation", { name: "Panels" });
+    await tabs.getByRole("button", { name: "Track", exact: true }).click();
+    await page.locator("#track-settings select").first().selectOption("noise");
+    await tabs.getByRole("button", { name: "Track", exact: true }).click();
+    m = await layout();
+    const names = m.labels.map((l) => l.text).join(" ");
+    check(
+      `${where}: drum keys named once each`,
+      names === "Kick Snare Hat",
+      names,
+    );
+    check(
+      `${where}: drum names are whole and on screen`,
+      m.labels.every((l) => l.lines <= 1 && l.right <= width) &&
+        m.scrollWidth <= width,
+      JSON.stringify(m.labels),
+    );
+    await context.close();
+  }
+}
+
 async function readingSettings(browser) {
   const bodyStyle = (page) =>
     page.evaluate(() => {
@@ -1109,11 +1201,16 @@ async function focusAids(browser) {
     const seenAt = Date.now();
     let barText = "";
     while (Date.now() - seenAt < 3600) {
-      if (await countIn.count()) {
-        const n = (await countIn.textContent()).trim();
-        if (seen[seen.length - 1] !== n) seen.push(n);
+      // Read both in one step: the count-in can end between a separate
+      // "is it there?" and "what does it say?", which then waits forever.
+      const now = await page.evaluate(() => ({
+        n: document.querySelector('[data-testid="count-in"]')?.textContent,
+        bar: document.querySelector(".rec-bar")?.textContent,
+      }));
+      if (now.n != null && seen[seen.length - 1] !== now.n.trim()) {
+        seen.push(now.n.trim());
       }
-      if (!barText && (await bar.count())) barText = await bar.textContent();
+      if (!barText && now.bar) barText = now.bar;
       await page.waitForTimeout(30);
     }
     check(
@@ -1139,8 +1236,10 @@ async function focusAids(browser) {
     const transport = await page.locator(".transport").boundingBox();
     check(
       `${where}: bar does not cover the transport controls`,
-      box.y + box.height <= transport.y + 0.5,
-      `bar bottom ${box.y + box.height}, transport top ${transport.y}`,
+      // Above the transport on desktop; by the keys (below it) on a phone.
+      box.y + box.height <= transport.y + 0.5 ||
+        box.y >= transport.y + transport.height - 0.5,
+      `bar ${box.y}–${box.y + box.height}, transport ${transport.y}–${transport.y + transport.height}`,
     );
     await page.getByRole("button", { name: "Record", exact: true }).click();
     await page.waitForTimeout(150);
@@ -1462,6 +1561,7 @@ async function startPreview() {
     await wavCoversSong(browser);
     await phone64Bars(browser);
     await readingSettings(browser);
+    await phoneLargeText(browser);
     await focusAids(browser);
     await accessibilityScan(browser);
   } finally {
