@@ -1,4 +1,4 @@
-// Browser check for arranger phase A, steps A2–A6 (#72–#76).
+// Browser checks for the arranger: phase A (#72–#76) and phase B (#77, #78).
 //
 // Run with `npm run test:e2e`: it builds the app, serves the build on a free
 // port and drives it in Chromium (install it once: `npx playwright install
@@ -182,11 +182,12 @@ async function stretchedClipRepeats(browser) {
     "stretch.ajsong.json",
   );
   await page.evaluate(() => (window.__starts = []));
-  await page.getByRole("button", { name: "Play" }).click();
+  await page.getByRole("button", { name: "Play", exact: true }).click();
   await page.waitForTimeout(6000); // song end is 20 beats = 5 s
   check(
     "linear playback stops by itself at the song end",
-    (await page.getByRole("button", { name: "Play" }).count()) === 1,
+    (await page.getByRole("button", { name: "Play", exact: true }).count()) ===
+      1,
   );
   const starts = await page.evaluate(() => window.__starts);
   const unique = [...new Set(starts.map((s) => s.toFixed(3)))].map(Number);
@@ -213,7 +214,7 @@ async function loopRegion(browser) {
     "loop.ajsong.json",
   );
   await page.getByRole("button", { name: "Loop" }).click();
-  await page.getByRole("button", { name: "Play" }).click();
+  await page.getByRole("button", { name: "Play", exact: true }).click();
   const seen = new Set();
   for (let i = 0; i < 25; i++) {
     seen.add(await position(page));
@@ -438,6 +439,76 @@ async function dragClips(browser) {
   await context.close();
 }
 
+async function chordBuilderClip(browser) {
+  const { context, page } = await start(browser, {
+    width: 1280,
+    height: 800,
+  });
+  await openSong(page, songFile(240, []), "chords.ajsong.json");
+  await page.getByRole("button", { name: /Chord builder/ }).click();
+  const builder = page.getByRole("region", { name: "Chord builder" });
+  await builder.getByLabel(/^Key/).selectOption({ label: "D" });
+  await builder
+    .getByLabel("Start from")
+    .selectOption({ label: "I–V–vi–IV (pop)" });
+  const names = await builder.locator(".progression .name").allTextContents();
+  check(
+    "I–V–vi–IV in D is D A Bm G",
+    names.join(" ") === "D A Bm G",
+    names.join(" "),
+  );
+  await builder.getByRole("button", { name: /Make clip at playhead/ }).click();
+  const label = await page
+    .locator("[data-clip-id]")
+    .first()
+    .getAttribute("aria-label");
+  check(
+    "the chord clip shows its chord names",
+    / 4 bars, chords D A Bm G$/.test(label),
+    label,
+  );
+  const saved = await savedSong(page);
+  const content = saved.tracks[0].clips[0].content;
+  const at = (beat) =>
+    content.notes
+      .filter((n) => n.startBeat === beat)
+      .map((n) => n.pitch)
+      .sort((a, b) => a - b)
+      .join(",");
+  check(
+    "the clip holds the right notes (D A Bm G triads)",
+    at(0) === "50,54,57" &&
+      at(4) === "57,61,64" &&
+      at(8) === "59,62,66" &&
+      at(12) === "55,59,62",
+    [0, 4, 8, 12].map(at).join(" | "),
+  );
+  await page.getByRole("button", { name: "Back to start" }).click();
+  await page.evaluate(() => (window.__starts = []));
+  await page.getByRole("button", { name: "Play", exact: true }).click();
+  await page.waitForTimeout(4600); // 16 beats at 240 BPM = 4 s
+  const starts = await page.evaluate(() => window.__starts);
+  // Notes of one chord start within a few ms of each other: group by gaps.
+  const groups = [];
+  for (const t of [...starts].sort((x, y) => x - y)) {
+    if (groups.length === 0 || t - groups.at(-1) > 0.1) groups.push(t);
+  }
+  const gaps = groups.slice(1).map((t, i) => t - groups[i]);
+  check(
+    "playback sounds 4 chords of 3 notes, 1 s apart, and nothing after the end",
+    starts.length === 12 &&
+      groups.length === 4 &&
+      gaps.every((g) => Math.abs(g - 1) < 0.02),
+    `${starts.length} notes in ${groups.length} groups, gaps ${gaps.map((g) => g.toFixed(3)).join(", ")}`,
+  );
+  await page.getByRole("button", { name: "Undo" }).click();
+  check(
+    "making the clip is one undo step",
+    (await page.locator("[data-clip-id]").count()) === 0,
+  );
+  await context.close();
+}
+
 /** Press Tab until `matches` is true for the focused element (no mouse). */
 async function tabTo(page, description, matches) {
   for (let i = 0; i < 80; i++) {
@@ -650,6 +721,7 @@ async function startPreview() {
     await dragClips(browser);
     await keyboardOnlyClipEdits(browser);
     await touchDrags(browser);
+    await chordBuilderClip(browser);
     await stretchedClipRepeats(browser);
     await loopRegion(browser);
     await wavCoversSong(browser);
