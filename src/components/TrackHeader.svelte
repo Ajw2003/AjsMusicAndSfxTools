@@ -124,12 +124,13 @@
   .summary {
     grid-column: 1;
     color: var(--color-muted);
-    font-size: 0.8rem;
+    font-size: 0.875rem;
   }
   .buttons {
     grid-column: 2;
     grid-row: 1 / span 2;
     display: flex;
+    flex-wrap: wrap;
     gap: 0.25rem;
   }
   .sr {
@@ -151,6 +152,7 @@
     border: 1px solid var(--color-border);
     border-radius: 0.5rem;
     cursor: pointer;
+    white-space: nowrap;
   }
   button[aria-pressed="true"] {
     border-color: var(--color-accent);

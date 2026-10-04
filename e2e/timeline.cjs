@@ -942,6 +942,140 @@ async function touchDrags(browser) {
   await context.close();
 }
 
+/** Reading settings (#88): fonts, text size, spacing, saved, nothing under 14px. */
+async function readingSettings(browser) {
+  const bodyStyle = (page) =>
+    page.evaluate(() => {
+      const s = getComputedStyle(document.body);
+      return {
+        family: s.fontFamily,
+        size: parseFloat(s.fontSize),
+        line: parseFloat(s.lineHeight),
+      };
+    });
+  const choose = async (page, group, label) => {
+    await openPanel(page, "Reading");
+    await page
+      .getByRole("group", { name: group })
+      .getByLabel(label, { exact: true })
+      .check();
+  };
+  const smallText = (page) =>
+    page.evaluate(() => {
+      const found = new Set();
+      const walker = document.createTreeWalker(
+        document.body,
+        NodeFilter.SHOW_TEXT,
+      );
+      while (walker.nextNode()) {
+        const node = walker.currentNode;
+        if (!node.textContent.trim()) continue;
+        const el = node.parentElement;
+        const r = el.getBoundingClientRect();
+        const s = getComputedStyle(el);
+        if (r.width === 0 || r.height === 0 || s.visibility === "hidden") {
+          continue;
+        }
+        if (parseFloat(s.fontSize) < 14) {
+          found.add(`${el.tagName}.${el.className}:${s.fontSize}`);
+        }
+      }
+      return [...found];
+    });
+
+  for (const viewport of [
+    { width: 1280, height: 800 },
+    { width: 390, height: 844 },
+  ]) {
+    const where = `${viewport.width}px`;
+    const { context, page } = await start(browser, viewport);
+    const normal = await bodyStyle(page);
+
+    for (const [label, name] of [
+      ["Atkinson Hyperlegible", "Atkinson"],
+      ["Lexend", "Lexend"],
+      ["OpenDyslexic", "OpenDyslexic"],
+    ]) {
+      await choose(page, "Font", label);
+      const { family } = await bodyStyle(page);
+      check(
+        `${where}: font ${label} changes the body font`,
+        family.includes(name) && family !== normal.family,
+        family,
+      );
+    }
+    await choose(page, "Font", "System");
+    check(
+      `${where}: font System restores the default`,
+      (await bodyStyle(page)).family === normal.family,
+    );
+
+    let small = await smallText(page);
+    check(
+      `${where}: no text under 14px (default)`,
+      small.length === 0,
+      small.join(" "),
+    );
+
+    await choose(page, "Text size", "Larger");
+    const larger = await bodyStyle(page);
+    check(
+      `${where}: Larger increases the text size`,
+      larger.size > normal.size,
+      `${normal.size}px -> ${larger.size}px`,
+    );
+    small = await smallText(page);
+    check(
+      `${where}: no text under 14px (Larger)`,
+      small.length === 0,
+      small.join(" "),
+    );
+
+    await choose(page, "Spacing", "Relaxed");
+    const relaxed = await bodyStyle(page);
+    check(
+      `${where}: Relaxed sets line height to at least 1.5 times the text size`,
+      relaxed.line >= relaxed.size * 1.5 - 0.01,
+      `${relaxed.line}px for ${relaxed.size}px`,
+    );
+
+    await choose(page, "Font", "OpenDyslexic");
+    await page.waitForTimeout(300);
+    const wide = await page.evaluate(
+      () => document.documentElement.scrollWidth - window.innerWidth,
+    );
+    check(
+      `${where}: no sideways page scroll with Larger, Relaxed and OpenDyslexic`,
+      wide <= 0,
+      `${wide}px over`,
+    );
+
+    await page.reload();
+    await page.getByRole("button", { name: /press any key to start/i }).click();
+    const after = await page.evaluate(() => ({
+      ...document.documentElement.dataset,
+      family: getComputedStyle(document.body).fontFamily,
+    }));
+    check(
+      `${where}: reading settings survive a reload`,
+      after.font === "opendyslexic" &&
+        after.textSize === "larger" &&
+        after.spacing === "relaxed" &&
+        after.family.includes("OpenDyslexic"),
+      JSON.stringify(after),
+    );
+    await openPanel(page, "Reading");
+    check(
+      `${where}: the Reading panel shows the saved choices`,
+      await page
+        .getByRole("group", { name: "Text size" })
+        .getByLabel("Larger", { exact: true })
+        .isChecked(),
+    );
+    await context.close();
+  }
+}
+
 /** Serve the built app (dist/) with Vite's preview server. */
 async function startPreview() {
   const { preview } = await import("vite");
@@ -975,6 +1109,7 @@ async function startPreview() {
     await loopRegion(browser);
     await wavCoversSong(browser);
     await phone64Bars(browser);
+    await readingSettings(browser);
   } finally {
     await browser.close();
     await preview?.server.close();

@@ -29,9 +29,53 @@
   }
 }
 
+/* Reading settings (#88): data-* attributes on <html>, set by lib/reading.ts. */
+:root {
+  --font-body: system-ui, sans-serif;
+  font-size: 100%;
+}
+:root[data-font="atkinson"] {
+  --font-body: "Atkinson Hyperlegible", system-ui, sans-serif;
+}
+:root[data-font="lexend"] {
+  --font-body: "Lexend", system-ui, sans-serif;
+}
+:root[data-font="opendyslexic"] {
+  --font-body: "OpenDyslexic", system-ui, sans-serif;
+}
+:root[data-text-size="large"] {
+  font-size: 118.75%;
+}
+:root[data-text-size="larger"] {
+  font-size: 137.5%;
+}
+/* Relaxed = WCAG 1.4.12: line 1.5, letters 0.12em, words 0.16em, paragraphs 2em. */
+:root[data-spacing="relaxed"] body {
+  line-height: 1.5;
+  letter-spacing: 0.12em;
+  word-spacing: 0.16em;
+}
+:root[data-spacing="relaxed"] :is(button, input, select, textarea) {
+  letter-spacing: inherit;
+  word-spacing: inherit;
+}
+:root[data-spacing="relaxed"] p {
+  margin-block-end: 2em;
+}
+/* Wrap long words rather than pushing the page sideways. */
+body {
+  overflow-wrap: anywhere;
+}
+button,
+input,
+select,
+textarea {
+  font-family: inherit;
+}
+
 body {
   margin: 0;
-  font-family: system-ui, sans-serif;
+  font-family: var(--font-body);
   background: var(--color-bg);
   color: var(--color-text);
 }

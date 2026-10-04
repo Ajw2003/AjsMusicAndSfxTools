@@ -6,6 +6,7 @@
   import Keyboard from "./components/Keyboard.svelte";
   import RecordingSettings from "./components/RecordingSettings.svelte";
   import SongFileBar from "./components/SongFileBar.svelte";
+  import ReadingSettings from "./components/ReadingSettings.svelte";
   import SongSettings from "./components/SongSettings.svelte";
   import StartOverlay from "./components/StartOverlay.svelte";
   import Timeline from "./components/Timeline.svelte";
@@ -14,6 +15,7 @@
   import TransportBar from "./components/TransportBar.svelte";
   import { getPreset, type ChiptuneSoundId } from "./lib/audio/chiptune";
   import { engine } from "./lib/audio/engine";
+  import { loadUi, saveUi } from "./lib/ui-storage";
   import { isTyping } from "./lib/input/is-typing";
   import { TakeRecorder } from "./lib/song/recorder";
   import {
@@ -79,7 +81,14 @@
   // ---- Panels: one open at a time, remembered in this browser ----
 
   type PanelId =
-    "track" | "clip" | "chords" | "recording" | "timeline" | "song" | "files";
+    | "track"
+    | "clip"
+    | "chords"
+    | "recording"
+    | "timeline"
+    | "song"
+    | "reading"
+    | "files";
   const PANELS: { id: PanelId; label: string }[] = [
     { id: "track", label: "Track" },
     { id: "clip", label: "Clip" },
@@ -87,30 +96,12 @@
     { id: "recording", label: "Recording" },
     { id: "timeline", label: "Timeline" },
     { id: "song", label: "Song" },
+    { id: "reading", label: "Reading" },
     { id: "files", label: "Save & export" },
   ];
   const PANEL_KEY = "ajs-music.ui.panel";
   const KEYBOARD_KEY = "ajs-music.ui.keyboard-hidden";
   const TIPS_KEY = "ajs-music.ui.tips-hidden";
-
-  /** Read a saved UI choice; storage can be missing or blocked. */
-  function loadUi(key: string): string | null {
-    try {
-      return localStorage.getItem(key);
-    } catch (error) {
-      console.warn(`Could not read ${key}:`, error);
-      return null;
-    }
-  }
-  function saveUi(key: string, value: string | null): void {
-    try {
-      if (value === null) localStorage.removeItem(key);
-      else localStorage.setItem(key, value);
-    } catch (error) {
-      // A layout preference is a convenience; losing it must not break anything.
-      console.warn(`Could not save ${key}:`, error);
-    }
-  }
 
   const savedPanel = loadUi(PANEL_KEY);
   let openPanel = $state<PanelId | null>(
@@ -927,6 +918,8 @@
         onMetronome={(on) => (metronomeOn = on)}
         {onMasterDb}
       />
+    {:else if openPanel === "reading"}
+      <ReadingSettings />
     {:else if openPanel === "files"}
       <SongFileBar {song} {onReplace} />
     {/if}
@@ -993,7 +986,7 @@
   }
   .help ol {
     margin: 0;
-    padding-left: 1.25rem;
+    padding-left: 2.25em;
   }
   .help button,
   .tips-toggle {

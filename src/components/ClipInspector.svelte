@@ -307,7 +307,7 @@
   }
   .unit {
     color: var(--color-muted);
-    font-size: 0.85rem;
+    font-size: 0.875rem;
   }
   .stepper {
     display: flex;
@@ -317,6 +317,6 @@
   .hint {
     margin: 0;
     color: var(--color-muted);
-    font-size: 0.85rem;
+    font-size: 0.875rem;
   }
 </style>

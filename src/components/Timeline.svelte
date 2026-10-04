@@ -497,7 +497,7 @@
     position: absolute;
     top: 0.15rem;
     left: 0.25rem;
-    font-size: 0.75rem;
+    font-size: 0.875rem;
     color: var(--color-muted);
     font-variant-numeric: tabular-nums;
   }

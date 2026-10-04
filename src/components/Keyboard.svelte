@@ -339,11 +339,11 @@
     border-radius: 0 0 0.3rem 0.3rem;
   }
   .note {
-    font-size: clamp(0.6rem, 2.4vw, 0.95rem);
+    font-size: 0.95rem;
     font-weight: 600;
   }
   .bound {
-    font-size: clamp(0.55rem, 2vw, 0.8rem);
+    font-size: 0.875rem;
     opacity: 0.75;
     min-height: 1em;
   }
@@ -353,7 +353,7 @@
     box-shadow: 0 0 1rem var(--glow);
   }
   .drums .note {
-    font-size: clamp(0.5rem, 1.8vw, 0.8rem);
+    font-size: 0.875rem;
   }
   @media (max-width: 600px) {
     .piano {
@@ -372,10 +372,10 @@
       gap: 0.5rem 1rem;
     }
     .note {
-      font-size: 0.85rem;
+      font-size: 0.875rem;
     }
     .drums .note {
-      font-size: 0.55rem;
+      font-size: 0.875rem;
     }
   }
   @media (prefers-reduced-motion: no-preference) {
