@@ -75,7 +75,8 @@ Comfortable for anyone, including ADHD-friendly calm.
 Simple/Advanced mode (Simple hides everything but the keyboard and instrument picker);
 note labels choice (C D E / Do Re Mi / none); colour-per-note option; reduced-motion setting
 (and respecting the OS setting); screen reader labels and live announcements; full keyboard
-navigation of every control; accessibility audit.
+navigation of every control; accessibility audit; a second usability pass over every screen for
+people with dyslexia and ADHD (#84, asked for by the owner 2026-10-03).
 
 **Acceptance:** every control reachable and usable with keyboard only; an automated
 accessibility check (axe) shows no serious issues on each screen; NVDA (free Windows screen

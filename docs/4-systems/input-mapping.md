@@ -4,6 +4,11 @@
 handling in `src/components/Keyboard.svelte`. Rebinding (M3) not built. On phones (≤600px) one octave
 is shown and the layout picker is hidden.
 
+**Chord pads, 2026-10-04 (#78):** number keys 1–8 (`Digit1`–`Digit8`, unused by both layouts) play saved chord pads,
+handled in `src/App.svelte` (`padForKey`, `onPadDown`/`onPadUp`) before the clip shortcuts; a pad sends each of
+its pitches through the same `onNoteOn`/`onNoteOff` as the keyboard, so it records like notes. Keys typed into a
+field (`isTyping`) are ignored. Known limit: two held pads sharing a pitch release it when either is let go.
+
 ## What it owns
 
 Turning raw input (computer-keyboard keys, mouse, touch, pen) into note events for the audio

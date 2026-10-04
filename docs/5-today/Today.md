@@ -1,4 +1,4 @@
-# Today (tier 5): 2026-10-03, handoff (phase A live)
+# Today (tier 5): 2026-10-04, handoff (phase B built)
 
 **Read this first, then [ProjectState](../3-state/ProjectState.md) and [the arranger plan](../plans/arranger-timeline.md).**
 
@@ -12,10 +12,15 @@
   Issues #70–#76 are still open: closing them is the owner's call after they've tried it.
 - Browser checks: `npm run test:e2e` (53 checks, Playwright 1.63.0, runs in CI).
 
+- **Phase B built on branch `ccr-140da2ff-xt2m7i`, not merged (2026-10-04):** chord builder (#77) and chord
+  pads (#78), plus two playback timing fixes (see ProjectState and Decisions). `npm run test:e2e` 62/62 twice.
+- **New issue #84:** second usability pass for dyslexia and ADHD (owner's request), under M4 (#34).
+
 ## Next session, in order
 
-1. Phase B: #77 chord builder, #78 one-key chord pads. Then C (#79–#81 audio files), D (#82 microphone).
-2. Ask the owner to try phase A and say which of #70–#76 can close.
+1. Phase B pull request: only with the owner's go-ahead, then CI green, then merge only if they say so.
+2. Phase C: #79–#81 audio files, then D: #82 microphone.
+3. #84 usability pass when the owner wants it scheduled (before or after phases C/D is their call).
 
 ## Open questions for the owner
 
