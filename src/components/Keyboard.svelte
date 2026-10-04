@@ -18,6 +18,7 @@
   import { isTyping } from "../lib/input/is-typing";
   import { drumLabel } from "../lib/audio/drums";
   import { midiToNoteName } from "../lib/note-names";
+  import type { Snippet } from "svelte";
 
   interface Props {
     onNoteOn: (midi: number, velocity: number) => void;
@@ -29,6 +30,8 @@
     /** Number of octaves drawn (phones use 1). */
     octaves?: number;
     octave?: number;
+    /** Extra controls shown in the keyboard's top row (e.g. Hide keyboard). */
+    controls?: Snippet;
   }
   let {
     onNoteOn,
@@ -37,6 +40,7 @@
     drums = false,
     octaves = 2,
     octave = $bindable(DEFAULT_OCTAVE),
+    controls,
   }: Props = $props();
 
   const VELOCITY = 0.8;
@@ -160,9 +164,20 @@
     return bound ? `${name}, key ${bound}` : name;
   }
 
+  /**
+   * Drum keys are named once per run of keys with the same drum ("Kick"
+   * over the first kick key, and so on), so the word never has to squeeze
+   * into one narrow key. Every key still has its full aria-label.
+   */
+  function startsDrumRun(midi: number): boolean {
+    const whiteIndex = whiteKeys.findIndex((k) => k.midi === midi);
+    if (whiteIndex <= 0) return true;
+    return drumLabel(whiteKeys[whiteIndex - 1].midi) !== drumLabel(midi);
+  }
+
   /** Note name; the octave number is only shown on C to save space. */
   function shortName(midi: number): string {
-    if (drums) return drumLabel(midi);
+    if (drums) return startsDrumRun(midi) ? drumLabel(midi) : "";
     const name = midiToNoteName(midi);
     return name.startsWith("C") && !name.startsWith("C#")
       ? name
@@ -187,6 +202,7 @@
   style:--black-w="calc(100% / {whiteKeys.length} * 0.62)"
 >
   <div class="controls">
+    {@render controls?.()}
     <label>
       Computer keys
       <select
@@ -227,10 +243,11 @@
     oncontextmenu={(e) => e.preventDefault()}
   >
     <div class="whites">
-      {#each whiteKeys as key (key.midi)}
+      {#each whiteKeys as key, i (key.midi)}
         <button
           type="button"
           class="key white"
+          class:last={i === whiteKeys.length - 1}
           class:pressed={pressed.has(key.midi)}
           data-midi={key.midi}
           tabindex="-1"
@@ -254,7 +271,7 @@
         style:left="calc({key.whiteBefore} * 100% / {whiteKeys.length} - var(--black-w)
         / 2)"
       >
-        <span class="note">{shortName(key.midi)}</span>
+        {#if !drums}<span class="note">{shortName(key.midi)}</span>{/if}
         <span class="bound">{boundLabel(key.midi)}</span>
       </button>
     {/each}
@@ -338,26 +355,69 @@
     background: var(--color-black-key);
     border-radius: 0 0 0.3rem 0.3rem;
   }
+  /* Labels follow the Reading text size, but never grow wider than a key:
+     5cqi of the piano's width caps them on narrow screens, and 14px is the
+     floor. Words are never broken across lines. */
+  .piano {
+    container-type: inline-size;
+  }
+  .note,
+  .bound {
+    white-space: nowrap;
+    line-height: 1.2;
+    letter-spacing: normal;
+    word-spacing: normal;
+  }
   .note {
-    font-size: 0.95rem;
+    font-size: clamp(14px, 0.95rem, 5cqi);
     font-weight: 600;
   }
   .bound {
-    font-size: 0.875rem;
+    font-size: clamp(14px, 0.875rem, 4.5cqi);
     opacity: 0.75;
-    min-height: 1em;
+    min-height: 1.2em;
+  }
+  /* A drum name sits over the first key of its run and may spread over the
+     keys that follow (they play the same drum). */
+  .black .note {
+    font-size: clamp(14px, 0.95rem, 4cqi);
+  }
+  .drums .white {
+    align-items: flex-start;
+    position: relative;
+  }
+  .drums .white .note {
+    position: absolute;
+    left: 0.35rem;
+    bottom: 1.6em;
+    z-index: 2;
+    pointer-events: none;
+  }
+  /* The last key has no keys after it to spread over. */
+  .drums .white.last .note {
+    left: auto;
+    right: 0.35rem;
+  }
+  .drums .white .bound {
+    align-self: center;
   }
   .key.pressed {
     background: var(--glow);
     color: #111;
     box-shadow: 0 0 1rem var(--glow);
   }
-  .drums .note {
-    font-size: 0.875rem;
-  }
   @media (max-width: 600px) {
     .piano {
-      height: 9.5rem;
+      /* In px, so a larger Reading text size can't push the timeline off
+         a phone screen. */
+      height: clamp(120px, 22svh, 152px);
+    }
+    /* Computer-key letters mean nothing on a touch screen. */
+    .bound {
+      display: none;
+    }
+    .drums .white .note {
+      bottom: 0.4rem;
     }
     .white {
       /* 8 keys must fit a 360px screen (about 41px each). */
@@ -370,12 +430,6 @@
     .controls {
       margin-bottom: 0.5rem;
       gap: 0.5rem 1rem;
-    }
-    .note {
-      font-size: 0.875rem;
-    }
-    .drums .note {
-      font-size: 0.875rem;
     }
   }
   @media (prefers-reduced-motion: no-preference) {

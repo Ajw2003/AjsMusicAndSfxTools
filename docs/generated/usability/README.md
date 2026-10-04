@@ -55,3 +55,14 @@ critical findings fail the run; moderate and minor ones are only printed. Final 
 | OpenDyslexic, Larger, Relaxed | phone | 0 | 0 | 0 | 0 |
 
 All 28 checks passed with no findings at any level. The scanner was confirmed to work by running it on a page with a known bad button and low contrast text; it reported both.
+
+## Phone fix after the owner's report (#93, 2026-10-04)
+
+| File | Shows |
+|---|---|
+| `before-6-phone-owner-report.jpg` | The owner's phone: keyboard covers the timeline, drum names break letter by letter |
+| `before-6-phone-412-larger.png` | Same problem reproduced at 412 px with Larger text |
+| `after-6-phone-412-larger.png` | After: the track shows above the keyboard; tips start hidden on phones |
+| `after-6-phone-drums-412-large.png` | After: drum keys named once each, Kick / Snare / Hat, whole words |
+| `after-6-phone-drums-360-large.png` | After: the same on a 360 px phone |
+| `after-6-wide-drums-980.png` | After: the phone's "desktop site" width (980 px), drums with computer-key letters |
