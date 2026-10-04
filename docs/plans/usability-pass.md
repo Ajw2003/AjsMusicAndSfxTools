@@ -3,7 +3,10 @@
 **Asked for (owner, 2026-10-03):** "do a second pass on the UI for usability, especially for those with
 disabilities like dyslexia and ADHD." Then, 2026-10-04: it comes **next**, before phase C (audio files).
 
-**Status:** plan only, waiting for the owner's go-ahead. Nothing here is built yet.
+**Status:** approved by the owner 2026-10-04 ("the rest is good"); being built. Steps are issues #86–#90.
+
+**Owner's answers (2026-10-04):** the five steps, all four fonts and the draft names are fine; yes to
+`@axe-core/playwright`; the owner has both dyslexia and ADHD and will try it themselves.
 
 ## What the app looks like today (measured 2026-10-04)
 
@@ -40,7 +43,7 @@ Both groups benefit from the same thing: **less on screen, said more plainly.**
 
 Each step is one sub-issue of #84, built and browser-checked on its own, with before/after screenshots.
 
-### 1. A calmer layout (biggest change)
+### 1. A calmer layout (biggest change) — #86
 
 - **Top bar = the four things you always need:** Play/Pause, Back to start, Record, and the position, larger
   than today. Undo/Redo stay next to them.
@@ -52,7 +55,7 @@ Each step is one sub-issue of #84, built and browser-checked on its own, with be
 - **Phone:** the timeline comes straight after the top bar, so the song is visible without scrolling. The
   keyboard dock gets a "hide keyboard" toggle, and chord pads become one scrollable row.
 
-### 2. Plain words
+### 2. Plain words — #87
 
 A rename pass on every visible label, with the old term kept where it's the standard musical word and is
 explained once. A first draft:
@@ -68,7 +71,7 @@ explained once. A first draft:
 | Length / Loop length (beats) | Length and Repeats every, in bars and beats |
 | "Pick a sound, press Record, play along…" (one long line) | Three short numbered steps, which can be hidden |
 
-### 3. Reading comfort settings
+### 3. Reading comfort settings — #88
 
 A small **Reading** setting, saved in the browser:
 
@@ -79,7 +82,7 @@ A small **Reading** setting, saved in the browser:
   WCAG 1.4.12.
 - In every mode: no text under 14 px, and no all-caps or italics used for meaning.
 
-### 4. Focus aids
+### 4. Focus aids — #89
 
 - **Recording you can't miss:** a red bar across the top saying "Recording into Verse — press Record to
   stop", and a large 4-3-2-1 count-in.
@@ -90,7 +93,7 @@ A small **Reading** setting, saved in the browser:
 - **Same place every time:** fixed positions for the top bar and panels, and no layout jumps when a panel
   opens.
 
-### 5. Check it
+### 5. Check it — #90
 
 - Before/after screenshots of every screen, desktop and phone, in `docs/generated/usability/`.
 - `npm run test:e2e` updated for the new labels and layout, still covering keyboard-only use and phones.

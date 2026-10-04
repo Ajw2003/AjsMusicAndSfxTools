@@ -19,7 +19,7 @@ projects and download a WAV. Checked by a headless-browser run (21/21 checks, de
 | M6: Save and export | 10% | Project files + WAV built; MP3/OGG, MIDI, options not | #51 |
 | M7: Piano roll and step sequencer | 10% | Read-only loop view only | #57 |
 | M8: Installable, offline and polished | 5% | Not started | #62 |
-| M9: Arranger | 15% | Phase A (#71–#76) live (PR #83); phase B (#77, #78) built on branch, not merged; C, D not started | #70 |
+| M9: Arranger | 15% | Phases A (#71–#76, PR #83) and B (#77, #78, PR #85) live; C, D not started | #70 |
 
 ## M0: Foundation
 
@@ -73,7 +73,8 @@ Plan: `docs/plans/arranger-timeline.md`. Handoff detail: `docs/5-today/Today.md`
   as there is no device here); picking a colour with the keyboard alone (the browser's own colour picker
   can't be driven from the test). Clips cover the lane they sit in, so on a phone a long song is scrolled by
   swiping the ruler or empty lane space, not by swiping a clip.
-- **Built, on branch only (2026-10-04):** chord builder that makes chord clips (#77) and one-key chord pads (#78).
+- **Merged and live 2026-10-04 (PR #85, merged by the owner; CI green; Pages deploy run 37166837843
+  succeeded):** chord builder that makes chord clips (#77) and one-key chord pads (#78).
   Checked: 126 unit tests; `npm run test:e2e` 62/62, twice. It builds I–V–vi–IV in D (D A Bm G), checks the clip's
   notes and chord names, and times playback (4 chords of 3 notes, 1.000 s apart, nothing after the end). It also
   records pads by keys 1–4, gets the four chords back, and finds the pads after a reload. Screenshots checked.
@@ -81,7 +82,8 @@ Plan: `docs/plans/arranger-timeline.md`. Handoff detail: `docs/5-today/Today.md`
   after); song playback could start late under load (now 100 ms look-ahead), while live key presses now start
   0.0 ms after the press instead of 20 ms or more. See Decisions, 2026-10-04.
 - **Not started:** #79–#82.
-- **Next UI pass:** #84 (dyslexia and ADHD usability), filed under M4. Already noted for it: on a phone the
+- **Next UI pass, in progress:** #84 (dyslexia and ADHD usability), steps #86–#90, owner-approved
+  2026-10-04 and scheduled before phase C. Already noted for it: on a phone the
   chord builder's per-chord buttons wrap untidily, and chord pads make the keyboard dock taller.
 
 ## The one thing that is not what it looks like

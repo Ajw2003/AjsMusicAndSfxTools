@@ -1,27 +1,22 @@
-# Today (tier 5): 2026-10-04, handoff (phase B built)
+# Today (tier 5): 2026-10-04, handoff (usability pass in progress)
 
 **Read this first, then [ProjectState](../3-state/ProjectState.md) and [the arranger plan](../plans/arranger-timeline.md).**
 
 ## Where things are
 
-- **Live site** (https://ajw2003.github.io/AjsMusicAndSfxTools/) = `main` = **arranger phase A** (PR #83, merged
-  by the owner 2026-10-03; both CI runs green including the new Playwright browser checks; Pages deploy
-  succeeded). Not opened in a browser by the agent: this environment's network policy blocks `github.io`.
-- Phase A = song format v2 (#71), playback from the playhead + loop toggle (#72), timeline view (#73), clip
-  dragging with snap (#74), clip inspector/split/duplicate/copy/paste (#75), recording into clips (#76).
-  Issues #70–#76 are still open: closing them is the owner's call after they've tried it.
-- Browser checks: `npm run test:e2e` (53 checks, Playwright 1.63.0, runs in CI).
-
-- **Phase B built on branch `ccr-140da2ff-xt2m7i`, not merged (2026-10-04):** chord builder (#77) and chord
-  pads (#78), plus two playback timing fixes (see ProjectState and Decisions). `npm run test:e2e` 62/62 twice.
-- **New issue #84:** second usability pass for dyslexia and ADHD (owner's request), under M4 (#34).
+- **Live site** (https://ajw2003.github.io/AjsMusicAndSfxTools/) = `main` = arranger phases A and B (PR #83,
+  PR #85, both merged by the owner; CI green; deploys succeeded). Not opened in a browser by the agent: this
+  environment's network policy blocks `github.io`.
+- **Now building: the #84 usability pass** (dyslexia and ADHD), approved by the owner 2026-10-04, before
+  phase C. Plan: `docs/plans/usability-pass.md`. Steps: #86 layout, #87 plain words, #88 reading settings,
+  #89 focus aids, #90 axe scan + before/after screenshots. The owner has both dyslexia and ADHD and will
+  try it.
 
 ## Next session, in order
 
-1. Phase B pull request #85 is open (owner said yes). Get CI green; merge only if the owner says so.
-2. **#84 usability pass comes next, before phase C** (owner, 2026-10-04). Plan for the owner to review while
-   they test: `docs/plans/usability-pass.md`. "Before" screenshots: `docs/generated/usability/`. Wait for
-   answers to its five questions, then file one sub-issue of #84 per step and build.
+1. Build #86 and #87 first, then #88, #89; #90 runs throughout. Browser-check each step, with before/after
+   screenshots in `docs/generated/usability/`.
+2. One PR for the pass (or one per step if the owner prefers), then the owner tries it.
 3. Then phase C: #79–#81 audio files, then D: #82 microphone.
 
 ## Open questions for the owner
