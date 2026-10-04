@@ -410,9 +410,11 @@ export class AudioEngine {
     this.#endEventId = transport.schedule(
       (time) => {
         if (this.activeLoop) return;
-        // Stop on the main thread at the moment the end is heard.
+        // Stop on the main thread at the moment the end is heard, leaving
+        // the playhead at the end; play() rewinds from there. Rewinding to 0
+        // here raced Tone's clock, which could replay beat 0's notes.
         Tone.getDraw().schedule(() => {
-          if (!this.activeLoop && this.isPlaying) this.#stopAt(0);
+          if (!this.activeLoop && this.isPlaying) this.pause();
         }, time);
       },
       `${Math.round(this.#endBeat * PPQ)}i`,
