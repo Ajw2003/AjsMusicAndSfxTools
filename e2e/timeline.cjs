@@ -1693,6 +1693,60 @@ async function keySpam(browser) {
   await context.close();
 }
 
+/** Issue #55: Download MIDI writes a real .mid with the song's notes. */
+async function midiExport(browser) {
+  const { context, page } = await start(browser, { width: 1280, height: 800 });
+  await openSong(
+    page,
+    songFile(120, [
+      clip("c1", 0, 4, 4, [
+        note("n1", 60, 0),
+        note("n2", 62, 1),
+        note("n3", 64, 2),
+      ]),
+    ]),
+    "midi.ajsong.json",
+  );
+  const download = page.waitForEvent("download");
+  await openPanel(page, "Save & export");
+  await page.getByRole("button", { name: "Download MIDI" }).click();
+  const file = await (await download).path();
+  const bytes = fs.readFileSync(file);
+  check(
+    "MIDI file starts with MThd",
+    bytes.toString("latin1", 0, 4) === "MThd",
+  );
+  // Walk each MTrk chunk: skip delta, then read events.
+  let noteOns = 0;
+  let p = 14;
+  while (p < bytes.length) {
+    const end = p + 8 + bytes.readUInt32BE(p + 4);
+    p += 8;
+    while (p < end) {
+      while (bytes[p] & 0x80) p++;
+      p++;
+      const status = bytes[p++];
+      if (status === 0xff) {
+        p++;
+        p += bytes[p] + 1;
+      } else if ((status & 0xf0) === 0xc0) {
+        p += 1;
+      } else {
+        if ((status & 0xf0) === 0x90 && bytes[p + 1] > 0) noteOns++;
+        p += 2;
+      }
+    }
+  }
+  check("MIDI file has exactly 3 note-on events", noteOns === 3, `${noteOns}`);
+  check(
+    "MIDI export says it saved the file",
+    (await page.getByRole("status").allTextContents()).some((t) =>
+      t.includes("Saved ajs-song.mid"),
+    ),
+  );
+  await context.close();
+}
+
 async function startPreview() {
   const { preview } = await import("vite");
   const server = await preview({ preview: { port: 4173, open: false } });
@@ -1731,6 +1785,7 @@ async function startPreview() {
     await focusAids(browser);
     await keySpam(browser);
     await layeringWarning(browser);
+    await midiExport(browser);
     await accessibilityScan(browser);
   } finally {
     await browser.close();
