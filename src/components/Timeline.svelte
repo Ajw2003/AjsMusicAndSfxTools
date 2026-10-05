@@ -69,7 +69,8 @@
   let visibleWidth = $state(0);
   let scroller: HTMLDivElement;
 
-  const endBeat = $derived(songEndBeat(song));
+  // A recording runs on past the song end; the view grows with the playhead.
+  const endBeat = $derived(Math.max(songEndBeat(song), Math.ceil(playhead)));
   const width = $derived(timelineWidth(endBeat, bpb, pxPerBeat, visibleWidth));
   const totalBeats = $derived(Math.floor(width / pxPerBeat));
   const ticks = $derived(rulerTicks(totalBeats, bpb, pxPerBeat));
@@ -500,6 +501,8 @@
     font-size: 0.875rem;
     color: var(--color-muted);
     font-variant-numeric: tabular-nums;
+    /* The tick is a zero-width box: without this, "10" stacks as 1 over 0. */
+    white-space: nowrap;
   }
   .region {
     position: absolute;

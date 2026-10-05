@@ -26,16 +26,16 @@
     findClip,
     type ChordPad,
     type Clip,
-    type LoopRegion,
     type Note,
     type Song,
     type SongCommand,
     type Track,
   } from "./lib/song/song";
   import {
+    nextClipStart,
     recordTarget,
+    recordedNotesEdit,
     snapDownToBar,
-    toClipSource,
     type ClipPlacement,
     type RecordTarget,
   } from "./lib/song/timeline-view";
@@ -75,9 +75,11 @@
   let loopOn = $state(false);
   let newClipBars = $state(4);
   let selectedClipId = $state<string | null>(null);
-  /** Where recorded notes go, and the span the transport loops while recording. */
+  /** Where recorded notes go (a clip, or where a new clip will start). */
   let recordTargetNow = $state<RecordTarget | null>(null);
-  let recordRegion: LoopRegion | null = null;
+  /** The song right after this take's last stored bar; later bars of the
+      same take are folded into that undo step while nothing else changed. */
+  let takeSong: Song | null = null;
   /** The copied clip (a deep copy), pasted with a fresh id. */
   let clipboard = $state<Clip | null>(null);
   let snapGrid = $state(1);
@@ -263,17 +265,22 @@
       beat = to;
       return;
     }
-    // While recording, the engine keeps the playhead inside the clip.
+    // Notes played so far stay where they were played; recording carries
+    // on from the new place.
+    if (isRecording && engine.isPlaying) flushTake();
     engine.seek(to);
     beat = engine.currentBeat();
     prevBeat = null;
+    if (isRecording) {
+      aimRecording(recordTarget(history.song, selectedId, null, beat));
+    }
   }
 
   function endRecording(): void {
     if (isRecording) flushTake();
     isRecording = false;
-    recordRegion = null;
-    if (isReady) engine.setLoopOverride(null);
+    takeSong = null;
+    if (isReady) engine.setFreeRun(false);
   }
 
   function onPlayPause(): void {
@@ -354,14 +361,6 @@
     );
     if (found.track.id !== toTrackId) selectTrack(toTrackId);
     selectedClipId = clipId;
-    // A clip being recorded into keeps recording over its new place.
-    if (
-      isRecording &&
-      recordTargetNow?.kind === "clip" &&
-      recordTargetNow.clipId === clipId
-    ) {
-      aimRecording(recordTargetNow);
-    }
   }
 
   function onClipChange(changes: Partial<Omit<Clip, "id" | "content">>): void {
@@ -516,87 +515,55 @@
   }
 
   // ---- Recording ----
+  // Recording runs on in a straight line (no loop, past the song end) until
+  // Record is pressed again. Notes are kept in timeline beats; each bar,
+  // the finished ones are stored and the clip grows to cover them.
 
-  /**
-   * Recording loops over one span of the timeline: the target clip's first
-   * pass (one source loop), or where a new clip will go.
-   */
-  function regionFor(target: RecordTarget): LoopRegion {
-    const song = history.song;
-    if (target.kind === "clip") {
-      const found = findClip(song, target.clipId);
-      if (found) {
-        const c = found.clip;
-        return {
-          startBeat: c.startBeat,
-          endBeat: c.startBeat + Math.min(c.lengthBeats, c.loopBeats),
-        };
-      }
-    }
-    const start = target.kind === "new" ? target.startBeat : 0;
-    return {
-      startBeat: start,
-      endBeat: start + newClipBars * song.beatsPerBar,
-    };
-  }
-
-  /** Aim recording at a target and loop the transport over its span. */
   function aimRecording(target: RecordTarget): void {
     recordTargetNow = target;
-    recordRegion = regionFor(target);
     if (target.kind === "clip") selectedClipId = target.clipId;
-    engine.setLoopOverride(recordRegion);
     prevBeat = null;
   }
 
-  /** Position inside the recording span (0 at its start), in beats. */
   function recordBeat(): number {
-    return engine.currentBeat() - (recordRegion?.startBeat ?? 0);
-  }
-
-  function recordLength(): number {
-    return recordRegion ? recordRegion.endBeat - recordRegion.startBeat : 16;
+    return engine.currentBeat();
   }
 
   function commitNotes(notes: Note[]): void {
     const target = recordTargetNow;
-    if (notes.length === 0 || !target) return;
+    if (!target) return;
     const song = history.song;
-    if (target.kind === "clip") {
-      const found = findClip(song, target.clipId);
-      if (!found) return;
-      history.apply({
-        type: "addNotesToClip",
-        clipId: found.clip.id,
-        notes: toClipSource(notes, found.clip),
-      });
-      return;
+    const track =
+      target.kind === "new"
+        ? song.tracks.find((t) => t.id === target.trackId)
+        : findClip(song, target.clipId)?.track;
+    const edit = recordedNotesEdit(song, target, notes, track?.name ?? "Clip");
+    if (!edit) return;
+    if (takeSong !== null && takeSong === history.song) {
+      history.amend(edit.command);
+    } else {
+      history.apply(edit.command);
     }
-    const track = song.tracks.find((t) => t.id === target.trackId);
-    if (!track) return;
-    // The new clip is only made once something was actually played into it.
-    const created = createNoteClip(
-      target.startBeat,
-      recordLength(),
-      track.name,
-    );
-    history.apply({
-      type: "batch",
-      commands: [
-        { type: "addClip", trackId: track.id, clip: created },
-        { type: "addNotesToClip", clipId: created.id, notes },
-      ],
-    });
-    recordTargetNow = { kind: "clip", clipId: created.id };
-    selectedClipId = created.id;
+    takeSong = history.song;
+    recordTargetNow = { kind: "clip", clipId: edit.clipId };
+    selectedClipId = edit.clipId;
   }
 
   function commitTake(): void {
-    commitNotes(recorder.collect(recordLength()));
+    commitNotes(recorder.collect());
   }
 
   function flushTake(): void {
-    commitNotes(recorder.flushAll(recordBeat(), recordLength()));
+    commitNotes(recorder.flushAll(recordBeat()));
+  }
+
+  /** Recording into a clip that starts after the playhead's track ends at it. */
+  function recordingRunsIntoNextClip(at: number): boolean {
+    const target = recordTargetNow;
+    if (target?.kind !== "clip") return false;
+    const found = findClip(history.song, target.clipId);
+    if (!found) return false;
+    return at >= nextClipStart(found.track, found.clip.startBeat);
   }
 
   function onRecordToggle(): void {
@@ -606,7 +573,22 @@
       return;
     }
     const at = engine.isPlaying ? engine.currentBeat() : beat;
-    aimRecording(recordTarget(history.song, selectedId, selectedClipId, at));
+    const target = recordTarget(history.song, selectedId, selectedClipId, at);
+    // Recording into a selected clip starts at that clip if the playhead
+    // is outside it.
+    const found =
+      target.kind === "clip" ? findClip(history.song, target.clipId) : null;
+    if (
+      found &&
+      (at < found.clip.startBeat ||
+        at >= found.clip.startBeat + found.clip.lengthBeats)
+    ) {
+      engine.seek(found.clip.startBeat);
+      beat = found.clip.startBeat;
+    }
+    takeSong = null;
+    aimRecording(target);
+    engine.setFreeRun(true);
     isRecording = true;
     if (!engine.isPlaying && !engine.isCountingIn) engine.playWithCountIn(4);
   }
@@ -618,16 +600,15 @@
     engine.releaseAll();
     selectedId = id;
     selectedClipId = null;
-    if (isRecording && recordRegion) {
-      // Keep recording over the same span, now on this track.
-      aimRecording(
-        recordTarget(history.song, id, null, recordRegion.startBeat),
-      );
+    if (isRecording) {
+      // Keep recording from here, now on this track.
+      const at = engine.isPlaying ? engine.currentBeat() : beat;
+      aimRecording(recordTarget(history.song, id, null, at));
     }
   }
 
-  // Watches the transport: mirrors state into the UI and, when a recording
-  // pass wraps, commits the pass just played as ONE undo step.
+  // Watches the transport: mirrors state into the UI and, while recording,
+  // stores each bar's finished notes as the playhead passes the bar line.
   let prevBeat: number | null = null;
   let frame = 0;
   function tick(): void {
@@ -647,7 +628,16 @@
       prevBeat = null;
       return;
     }
-    if (prevBeat !== null && b < prevBeat && isRecording) commitTake();
+    if (isRecording && !counting && prevBeat !== null) {
+      const bpb = history.song.beatsPerBar;
+      if (recordingRunsIntoNextClip(b)) {
+        // The next clip on this track takes over from here.
+        flushTake();
+        aimRecording(recordTarget(history.song, selectedId, null, b));
+      } else if (Math.floor(b / bpb) !== Math.floor(prevBeat / bpb)) {
+        commitTake();
+      }
+    }
     prevBeat = b;
   }
 
@@ -857,7 +847,7 @@
       <div class="help">
         <ol>
           <li>Pick a sound.</li>
-          <li>Press Record and play along with the loop.</li>
+          <li>Press Record and play. Press Record again to stop.</li>
           <li>Select a clip to record into it, or press New clip.</li>
         </ol>
         <button

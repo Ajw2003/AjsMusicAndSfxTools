@@ -110,7 +110,7 @@ export type SongCommand =
 
 const MIN_BPM = 40;
 const MAX_BPM = 240;
-const MIN_NOTE_BEATS = 0.05;
+export const MIN_NOTE_BEATS = 0.05;
 const MIN_CLIP_BEATS = 0.25;
 const MIN_SONG_BEATS = 16;
 const HISTORY_LIMIT = 200;
@@ -502,6 +502,19 @@ export class SongHistory {
     if (this.#past.length > HISTORY_LIMIT) this.#past.shift();
     this.#future = [];
     this.#set(next);
+  }
+
+  /**
+   * Apply a command as part of the LAST undo step (e.g. the bars of one
+   * recording take), so one Undo removes the whole take.
+   */
+  amend(cmd: SongCommand): void {
+    if (this.#past.length === 0) {
+      this.apply(cmd);
+      return;
+    }
+    this.#future = [];
+    this.#set(applyCommand(this.#song, cmd));
   }
 
   /** Step back one change; false if there was nothing to undo. */

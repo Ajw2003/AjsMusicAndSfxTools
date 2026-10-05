@@ -102,6 +102,12 @@ Plan: `docs/plans/arranger-timeline.md`. Handoff detail: `docs/5-today/Today.md`
   person. Known rough edges: the count-in number briefly covers the timeline; black-key labels stack
   ("G" over "#") with OpenDyslexic + Larger + Relaxed on a phone; track and master volume show a bare number.
 
+- **Recording runs on, 2026-10-05 (#96, owner's report), on branch `claude/modest-mendel-kfiuw7`:** Record no
+  longer loops the clip's first 16 beats; it runs until Record is pressed again, the clip growing bar by bar, one
+  undo step per take. Checked: 134 unit tests; `npm run test:e2e` 207/207 ("ALL PASS") three runs in a row,
+  including an 8-bar take into a 4-bar clip with a backing track (every backing note heard once while bars are
+  stored). Also fixed: two-digit bar numbers on the ruler stacked as "1 / 0". Not yet tried by the owner.
+
 ## The one thing that is not what it looks like
 
 The prototype looks like most of M1 and M5 are done, but no milestone's acceptance has been checked by a

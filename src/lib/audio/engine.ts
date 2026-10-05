@@ -224,9 +224,10 @@ export class AudioEngine {
   #masterDb = 0;
   #voices = new Map<string, TrackVoice>();
   #parts: Tone.Part[] = [];
-  /** Loop region from the song, and an override used while recording. */
+  /** Loop region from the song. */
   #region: LoopRegion | null = null;
-  #regionOverride: LoopRegion | null = null;
+  /** While recording: no loop and no stop at the song end. */
+  #isFreeRun = false;
   #loopEnabled = false;
   /** Where the song ends (playback stops here when not looping). */
   #endBeat = 16;
@@ -335,7 +336,7 @@ export class AudioEngine {
 
   /** The loop region in effect, or null when playback runs linearly. */
   get activeLoop(): LoopRegion | null {
-    if (this.#regionOverride) return this.#regionOverride;
+    if (this.#isFreeRun) return null;
     return this.#loopEnabled ? this.#region : null;
   }
 
@@ -363,10 +364,22 @@ export class AudioEngine {
     this.#applyLoop();
   }
 
-  /** Force a loop region regardless of the song (e.g. while recording); null ends it. */
-  setLoopOverride(region: LoopRegion | null): void {
-    this.#regionOverride = region ? { ...region } : null;
+  /**
+   * Free run (used while recording): ignore the loop region and play on
+   * past the song end until told to stop. Turning it off past the end
+   * stops playback there, as the end event has already gone by.
+   */
+  setFreeRun(isOn: boolean): void {
+    this.#isFreeRun = isOn;
     this.#applyLoop();
+    if (
+      !isOn &&
+      this.isPlaying &&
+      !this.activeLoop &&
+      this.currentBeat() >= this.#endBeat - 1e-6
+    ) {
+      this.pause();
+    }
   }
 
   /**
@@ -419,12 +432,14 @@ export class AudioEngine {
     if (this.#endEventId !== null) transport.clear(this.#endEventId);
     this.#endEventId = transport.schedule(
       (time) => {
-        if (this.activeLoop) return;
+        if (this.activeLoop || this.#isFreeRun) return;
         // Stop on the main thread at the moment the end is heard, leaving
         // the playhead at the end; play() rewinds from there. Rewinding to 0
         // here raced Tone's clock, which could replay beat 0's notes.
         Tone.getDraw().schedule(() => {
-          if (!this.activeLoop && this.isPlaying) this.pause();
+          if (!this.activeLoop && !this.#isFreeRun && this.isPlaying) {
+            this.pause();
+          }
         }, time);
       },
       `${Math.round(this.#endBeat * PPQ)}i`,
@@ -468,7 +483,11 @@ export class AudioEngine {
   }
 
   #prepareStart(): void {
-    if (!this.activeLoop && this.currentBeat() >= this.#endBeat - 1e-6) {
+    if (
+      !this.activeLoop &&
+      !this.#isFreeRun &&
+      this.currentBeat() >= this.#endBeat - 1e-6
+    ) {
       this.seek(0);
     }
   }

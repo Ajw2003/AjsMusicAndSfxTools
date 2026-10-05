@@ -116,6 +116,88 @@ async function setBpm(page, bpm) {
   await page.locator("body").click({ position: { x: 2, y: 2 } });
 }
 
+// Owner report 2026-10-04: recording stopped at a count of 16 and looped
+// back over the take. Recording now runs on until Record is pressed again.
+async function longTake(browser) {
+  const { context, page } = await start(browser, { width: 1280, height: 800 });
+  // Noise drums start AudioBufferSourceNodes, so the backing hats can be
+  // told apart from the live notes (oscillators) played over them.
+  await page.evaluate(() => {
+    window.__hats = [];
+    const original = AudioBufferSourceNode.prototype.start;
+    AudioBufferSourceNode.prototype.start = function (when, ...rest) {
+      if (!(this.context instanceof OfflineAudioContext) && when > 0) {
+        window.__hats.push(when);
+      }
+      return original.call(this, when, ...rest);
+    };
+  });
+  const hats = [];
+  for (let b = 0; b < 64; b++) hats.push(note(`h${b}`, 80, b, 0.25));
+  const hatTrack = {
+    ...track("t2", "Hats", [clip("H", 0, 64, 64, hats)]),
+    sound: "noise",
+  };
+  await openSong(
+    page,
+    songFile(240, [clip("A", 0, 16, 16, [])], null, [hatTrack]),
+    "long.ajsong.json",
+  );
+  await page.locator('[data-clip-id="A"]').click();
+  await page.getByRole("button", { name: "Record", exact: true }).click();
+  await page.waitForTimeout(1000 + 300); // count-in
+  const positions = [];
+  // One note per bar for 8 bars (1 s = one bar at 240 BPM).
+  for (let bar = 0; bar < 8; bar++) {
+    await page.keyboard.down("KeyA");
+    await page.waitForTimeout(150);
+    await page.keyboard.up("KeyA");
+    positions.push(await position(page));
+    await page.waitForTimeout(850);
+  }
+  await page.getByRole("button", { name: "Record", exact: true }).click();
+  await pauseIfPlaying(page);
+
+  const bars = positions.map((p) => Number(/Bar (\d+)/.exec(p)[1]));
+  check(
+    "a long take never jumps back to the start",
+    bars.every((b, i) => i === 0 || b > bars[i - 1]) && bars.at(-1) >= 8,
+    bars.join(", "),
+  );
+  const saved = await savedSong(page);
+  const a = saved.tracks[0].clips.find((c) => c.id === "A");
+  check(
+    "the clip grew past 16 beats to hold the take",
+    a.lengthBeats >= 32 && a.loopBeats === a.lengthBeats,
+    `length ${a.lengthBeats}, notes area ${a.loopBeats}`,
+  );
+  const starts = a.content.notes.map((n) => n.startBeat).sort((x, y) => x - y);
+  check(
+    "all 8 notes are kept, one per bar",
+    starts.length === 8 &&
+      starts.every((b, i) => i === 0 || b - starts[i - 1] > 2),
+    starts.map((b) => b.toFixed(2)).join(", "),
+  );
+  const times = await page.evaluate(() => window.__hats);
+  const gaps = times.slice(1).map((t, i) => t - times[i]);
+  const odd = gaps.filter((g) => Math.abs(g - 0.25) > 0.01);
+  check(
+    "the backing track plays every beat once while the take is stored",
+    times.length >= 30 && odd.length === 0,
+    `${times.length} hats, odd gaps: ${odd.map((g) => g.toFixed(3)).join(" ") || "none"}`,
+  );
+  await page.getByRole("button", { name: "Undo" }).click();
+  const undone = (await savedSong(page)).tracks[0].clips.find(
+    (c) => c.id === "A",
+  );
+  check(
+    "one Undo removes the whole take",
+    undone.content.notes.length === 0 && undone.lengthBeats === 16,
+    `${undone.content.notes.length} notes, length ${undone.lengthBeats}`,
+  );
+  await context.close();
+}
+
 async function recordIntoClip(browser) {
   const { context, page } = await start(browser, {
     width: 1280,
@@ -135,16 +217,28 @@ async function recordIntoClip(browser) {
   await page.keyboard.down("KeyA");
   await page.waitForTimeout(200);
   await page.keyboard.up("KeyA");
-  await page.waitForTimeout(4200); // past the wrap: the pass is committed
+  await page.waitForTimeout(4200); // past the clip's 4-bar end
   check(
-    "a recorded pass lands in the clip",
+    "a recorded note lands in the clip",
     (await page.getByTestId("note-summary").first().textContent()) === "1 note",
   );
+  // Recording runs on in a straight line: no jump back to bar 1.
+  const runningAt = await position(page);
+  check(
+    "recording carries on past the clip end instead of looping",
+    /^Bar ([5-9]|\d\d)/.test(runningAt),
+    runningAt,
+  );
   await page.getByRole("button", { name: "Record", exact: true }).click();
-  await page.getByRole("button", { name: "Pause" }).click();
+  // Past the song end, stopping the recording also stops playback there.
+  await page.getByRole("button", { name: "Play", exact: true }).waitFor();
   const paused = await position(page);
   await page.waitForTimeout(400);
-  check("pause keeps the playhead", (await position(page)) === paused, paused);
+  check(
+    "stopping keeps the playhead",
+    (await position(page)) === paused,
+    paused,
+  );
 
   // Ruler click: bar 9 is beat 32.
   const ruler = page.getByRole("slider", { name: "Playhead" });
@@ -577,9 +671,10 @@ async function chordPads(browser) {
     await page.keyboard.up(key);
     await page.waitForTimeout(500);
   }
-  await page.waitForTimeout(1200); // past the wrap: the pass is committed
+  await page.waitForTimeout(1200);
   await page.getByRole("button", { name: "Record", exact: true }).click();
-  await page.getByRole("button", { name: "Pause" }).click();
+  // Stopping a take past the song end also stops playback; else pause.
+  await pauseIfPlaying(page);
   const saved = await savedSong(page);
   const notes = saved.tracks[0].clips[0].content.notes;
   const chordsHeard = [];
@@ -774,6 +869,20 @@ async function tabTo(page, description, matches) {
 }
 
 /** The song as autosaved (written 0.8 s after the last change). */
+/**
+ * Press Pause if playback is still running. One step in the page: playback
+ * can reach the song end and stop by itself between a separate "is Pause
+ * there?" and the click, which would then wait for a button that is gone.
+ */
+async function pauseIfPlaying(page) {
+  await page.evaluate(() => {
+    const pause = [...document.querySelectorAll("button")].find(
+      (b) => b.textContent.trim() === "Pause",
+    );
+    pause?.click();
+  });
+}
+
 async function savedSong(page) {
   await page.waitForTimeout(1000);
   return page.evaluate(() =>
@@ -1549,6 +1658,7 @@ async function startPreview() {
   });
   try {
     await recordIntoClip(browser);
+    await longTake(browser);
     await dragClips(browser);
     await keyboardOnlyClipEdits(browser);
     await touchDrags(browser);
