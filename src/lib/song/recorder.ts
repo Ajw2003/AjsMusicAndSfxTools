@@ -1,4 +1,9 @@
-import { quantizeBeat, wrapNoteToLoop, type Note } from "./song";
+import {
+  MIN_NOTE_BEATS,
+  quantizeBeat,
+  wrapNoteToLoop,
+  type Note,
+} from "./song";
 
 interface Finished {
   midi: number;
@@ -39,9 +44,22 @@ export class TakeRecorder {
     });
   }
 
-  /** Finished notes so far (cleared); still-held notes stay pending. */
-  collect(loopLength: number): Note[] {
+  /**
+   * Finished notes so far (cleared); still-held notes stay pending. With a
+   * loop length, times wrap into the loop; without one (Infinity, the
+   * default) they are left as played, for a straight-line recording.
+   */
+  collect(loopLength = Infinity): Note[] {
     const out = this.#finished.map((f) => {
+      if (!Number.isFinite(loopLength)) {
+        return {
+          id: crypto.randomUUID(),
+          pitch: f.midi,
+          startBeat: quantizeBeat(f.start, this.quantizeGrid),
+          durationBeats: Math.max(MIN_NOTE_BEATS, f.end - f.start),
+          velocity: f.velocity,
+        };
+      }
       // An off earlier in the loop than the on means the loop wrapped.
       const raw =
         f.end >= f.start ? f.end - f.start : f.end - f.start + loopLength;
@@ -61,7 +79,7 @@ export class TakeRecorder {
   }
 
   /** Close every held note at `beat`, then collect everything. */
-  flushAll(beat: number, loopLength: number): Note[] {
+  flushAll(beat: number, loopLength = Infinity): Note[] {
     for (const midi of [...this.#held.keys()]) this.noteOff(midi, beat);
     return this.collect(loopLength);
   }

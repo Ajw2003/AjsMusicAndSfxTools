@@ -10,10 +10,16 @@ A `batch` command groups multi-step edits into one undo.
 track lanes (`TrackHeader.svelte`, `ClipBlock.svelte`) under a bar ruler; geometry, zoom and ruler ticks are
 pure helpers in `src/lib/song/timeline-view.ts`. Record picks its target with `recordTarget`
 (`timeline-view.ts:108`): the selected clip, else the selected track's clip under the playhead, else a new clip
-at that bar (made only once a note is played, so an empty take leaves nothing behind). While recording the
-transport loops the target's first pass (`regionFor`/`aimRecording`, `src/App.svelte:214`); notes are
-recorded relative to that span and moved into the clip's source loop by `toClipSource` (`timeline-view.ts:138`),
-which accounts for trim. One pass is still one undo step.
+at that bar (made only once a note is played, so an empty take leaves nothing behind).
+
+**Recording runs on in a straight line, 2026-10-05 (#96; replaces the loop recording of #76):** while recording,
+the engine's free run (`setFreeRun`, `src/lib/audio/engine.ts:372`) ignores the Loop region and the song end.
+Notes are kept in timeline beats; at every bar line `commitNotes` (`src/App.svelte:532`) stores the finished ones
+through `recordedNotesEdit` (`timeline-view.ts:154`), which grows the clip in whole bars (never shrinking it,
+never past the next clip on the track) and moves the notes into its source loop with `toClipSource`. A repeating
+clip keeps its pattern length. When the playhead reaches the next clip, recording carries on into it. All bars
+of one take are one undo step (`SongHistory.amend`, `src/lib/song/song.ts:511`). Stopping past the song end also
+stops playback there.
 
 **Editing clips, 2026-10-03 (#74, #75):** dragging is worked out by `dragClip` (`timeline-view.ts:237`): move, stretch
 (right edge; the loop is kept so content repeats) or trim (left edge; the trim offset shifts so the notes that

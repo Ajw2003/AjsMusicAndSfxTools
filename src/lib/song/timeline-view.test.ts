@@ -10,8 +10,10 @@ import {
   clipLabels,
   clipPreview,
   dragClip,
+  nextClipStart,
   pxToBeat,
   recordTarget,
+  recordedNotesEdit,
   repeatBoundaries,
   rulerTicks,
   snapDownToBar,
@@ -20,7 +22,13 @@ import {
   toClipSource,
   trackNoteCount,
 } from "./timeline-view";
-import { createNoteClip, createSong, createTrack, type Note } from "./song";
+import {
+  applyCommand,
+  createNoteClip,
+  createSong,
+  createTrack,
+  type Note,
+} from "./song";
 
 const n = (id: string, pitch: number, startBeat: number, d = 1): Note => ({
   id,
@@ -223,5 +231,84 @@ describe("chord labels on clips", () => {
   });
   it("has none for clips without labels", () => {
     expect(clipLabels(createNoteClip(0, 4))).toEqual([]);
+  });
+});
+
+describe("straight-line recording (no loop)", () => {
+  it("grows a 4-bar clip in whole bars to cover notes past its end", () => {
+    const song = createSong(); // one track, one empty 16-beat clip at 0
+    const clip = song.tracks[0].clips[0];
+    const edit = recordedNotesEdit(
+      song,
+      { kind: "clip", clipId: clip.id },
+      [n("a", 60, 2), n("b", 62, 21.5, 1)], // the last ends at 22.5: bar 6
+      "Lead",
+    );
+    const after = applyCommand(song, edit!.command);
+    const grown = after.tracks[0].clips[0];
+    expect(grown.lengthBeats).toBe(24);
+    expect(grown.loopBeats).toBe(24);
+    expect(
+      grown.content.kind === "notes" &&
+        grown.content.notes.map((x) => x.startBeat),
+    ).toEqual([2, 21.5]);
+  });
+
+  it("never shrinks a clip and keeps a repeating clip's pattern", () => {
+    const song = createSong();
+    const clip = { ...song.tracks[0].clips[0], loopBeats: 4 };
+    song.tracks[0].clips[0] = clip;
+    const edit = recordedNotesEdit(
+      song,
+      { kind: "clip", clipId: clip.id },
+      [n("a", 60, 5)],
+      "Lead",
+    );
+    const grown = applyCommand(song, edit!.command).tracks[0].clips[0];
+    expect(grown.lengthBeats).toBe(16);
+    expect(grown.loopBeats).toBe(4);
+    // Beat 5 of the clip is beat 1 of its 4-beat pattern.
+    expect(
+      grown.content.kind === "notes" && grown.content.notes[0].startBeat,
+    ).toBe(1);
+  });
+
+  it("stops growing at the next clip on the track", () => {
+    const song = createSong();
+    const track = song.tracks[0];
+    track.clips.push(createNoteClip(32, 16));
+    expect(nextClipStart(track, 0)).toBe(32);
+    const edit = recordedNotesEdit(
+      song,
+      { kind: "clip", clipId: track.clips[0].id },
+      [n("a", 60, 30, 8)],
+      "Lead",
+    );
+    const grown = applyCommand(song, edit!.command).tracks[0].clips[0];
+    expect(grown.lengthBeats).toBe(32);
+  });
+
+  it("makes a new clip only once there are notes, sized to them", () => {
+    const song = createSong();
+    const target = {
+      kind: "new" as const,
+      trackId: song.tracks[0].id,
+      startBeat: 16,
+    };
+    expect(recordedNotesEdit(song, target, [], "Lead")).toBeNull();
+    const edit = recordedNotesEdit(
+      song,
+      target,
+      [n("a", 60, 17), n("b", 64, 40)],
+      "Lead",
+    );
+    const made = applyCommand(song, edit!.command).tracks[0].clips[1];
+    expect(made.id).toBe(edit!.clipId);
+    expect(made.startBeat).toBe(16);
+    expect(made.lengthBeats).toBe(28); // to beat 41 → 7 bars
+    expect(
+      made.content.kind === "notes" &&
+        made.content.notes.map((x) => x.startBeat),
+    ).toEqual([1, 24]);
   });
 });

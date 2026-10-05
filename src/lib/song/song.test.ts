@@ -467,6 +467,20 @@ describe("applyCommand", () => {
 });
 
 describe("SongHistory", () => {
+  it("amend folds a change into the last undo step", () => {
+    const h = new SongHistory(createSong());
+    h.amend({ type: "setBpm", bpm: 90 }); // nothing to amend: a new step
+    h.apply({ type: "setBpm", bpm: 100 });
+    h.amend({ type: "setBpm", bpm: 120 });
+    h.amend({ type: "setBpm", bpm: 130 });
+    expect(h.song.bpm).toBe(130);
+    expect(h.undo()).toBe(true);
+    expect(h.song.bpm).toBe(90);
+    expect(h.undo()).toBe(true);
+    expect(h.song.bpm).toBe(110);
+    expect(h.canUndo).toBe(false);
+  });
+
   it("undoes and redoes in order", () => {
     const h = new SongHistory(createSong());
     expect(h.canUndo).toBe(false);

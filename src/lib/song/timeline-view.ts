@@ -1,10 +1,13 @@
 import {
+  createNoteClip,
   expandClipNotes,
+  findClip,
   quantizeBeat,
   wrapNoteToLoop,
   type Clip,
   type Note,
   type Song,
+  type SongCommand,
   type Track,
 } from "./song";
 
@@ -129,6 +132,94 @@ export function recordTarget(
     kind: "new",
     trackId: selectedTrackId,
     startBeat: snapDownToBar(playheadBeat, song.beatsPerBar),
+  };
+}
+
+/** Start of the first clip on `track` that starts after `beat`, or Infinity. */
+export function nextClipStart(track: Track, beat: number): number {
+  let next = Infinity;
+  for (const c of track.clips) {
+    if (c.startBeat > beat) next = Math.min(next, c.startBeat);
+  }
+  return next;
+}
+
+/**
+ * The edit that stores notes from a recording take. Recording runs on in a
+ * straight line, so the notes are in timeline beats and the target clip
+ * grows (in whole bars) to cover them, up to the next clip on its track.
+ * A "new" target becomes a clip only now, when there is something in it.
+ * Returns null when there is nothing to store.
+ */
+export function recordedNotesEdit(
+  song: Song,
+  target: RecordTarget,
+  notes: Note[],
+  clipName: string,
+): { command: SongCommand; clipId: string } | null {
+  if (notes.length === 0) return null;
+  const bpb = song.beatsPerBar;
+  const roundUpToBar = (beats: number) =>
+    Math.max(bpb, Math.ceil(beats / bpb - 1e-9) * bpb);
+  const reach = (start: number) =>
+    Math.max(...notes.map((n) => n.startBeat + n.durationBeats)) - start;
+
+  if (target.kind === "new") {
+    const track = song.tracks.find((t) => t.id === target.trackId);
+    if (!track) return null;
+    const room = nextClipStart(track, target.startBeat) - target.startBeat;
+    const length = Math.min(roundUpToBar(reach(target.startBeat)), room);
+    const clip = createNoteClip(target.startBeat, length, clipName);
+    const inside = notes
+      .map((n) => ({ ...n, startBeat: n.startBeat - target.startBeat }))
+      .filter((n) => n.startBeat >= 0 && n.startBeat < length);
+    return {
+      clipId: clip.id,
+      command: {
+        type: "batch",
+        commands: [
+          { type: "addClip", trackId: track.id, clip },
+          { type: "addNotesToClip", clipId: clip.id, notes: inside },
+        ],
+      },
+    };
+  }
+
+  const found = findClip(song, target.clipId);
+  if (!found) return null;
+  const { clip, track } = found;
+  const room = nextClipStart(track, clip.startBeat) - clip.startBeat;
+  const length = Math.max(
+    clip.lengthBeats,
+    Math.min(roundUpToBar(reach(clip.startBeat)), room),
+  );
+  // A clip that plays its notes once grows its notes area with it; a clip
+  // that repeats a shorter pattern keeps repeating it.
+  const isRepeating = clip.loopBeats < clip.lengthBeats;
+  const grown: Clip = {
+    ...clip,
+    lengthBeats: length,
+    loopBeats: isRepeating ? clip.loopBeats : Math.max(clip.loopBeats, length),
+  };
+  const inside = notes
+    .map((n) => ({ ...n, startBeat: n.startBeat - clip.startBeat }))
+    .filter((n) => n.startBeat >= 0 && n.startBeat < length);
+  const commands: SongCommand[] = [];
+  if (length !== clip.lengthBeats || grown.loopBeats !== clip.loopBeats) {
+    commands.push({
+      type: "updateClip",
+      clipId: clip.id,
+      changes: { lengthBeats: grown.lengthBeats, loopBeats: grown.loopBeats },
+    });
+  }
+  commands.push({
+    type: "addNotesToClip",
+    clipId: clip.id,
+    notes: toClipSource(inside, grown),
+  });
+  return {
+    clipId: clip.id,
+    command: commands.length === 1 ? commands[0] : { type: "batch", commands },
   };
 }
 

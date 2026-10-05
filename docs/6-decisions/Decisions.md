@@ -5,7 +5,25 @@ Append-only. Newest at the top. An old entry is never rewritten; when one is rep
 
 ---
 
-## 2026-10-04 — Live notes skip the look-ahead; playback keeps Tone's default
+## 2026-10-05 — Recording runs on in a straight line, not as a loop pedal
+
+**Context.** Since #76, Record looped the transport over the target clip's first pass (16 beats for a new
+clip), storing one pass per loop, like a loop pedal. The owner found that bad: "it'll only record to count of
+16 and then it automatically loop over the existing recording … it should continue on indefinitely … until you
+stop pressing record" (#96).
+
+**Decision.** While recording, playback ignores the Loop region and the song end (`setFreeRun`,
+`src/lib/audio/engine.ts:372`). At each bar line the finished notes are stored and the clip grows in whole bars
+to cover them, stopping at the next clip on its track, where recording carries on into that clip
+(`recordedNotesEdit`, `src/lib/song/timeline-view.ts:154`; `src/App.svelte:532`). The bars of one take are
+folded into a single undo step (`SongHistory.amend`, `src/lib/song/song.ts:511`).
+
+**Why.** The owner's request. It is also how most recorders behave by default. Layering over a loop is still
+possible by recording into a clip again; a repeating clip keeps repeating its pattern.
+
+**Status.** Standing. Replaces the loop-recording part of the arranger design (#76).
+
+ the look-ahead; playback keeps Tone's default
 
 **Context.** The engine set Tone's scheduling look-ahead to 20 ms so notes played by hand felt immediate.
 While building the chord builder (#77), a browser check caught a chord clip's last chord starting 31 ms late:

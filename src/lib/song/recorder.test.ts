@@ -69,4 +69,15 @@ describe("TakeRecorder", () => {
     r.noteOff(60, 1);
     expect(r.collect(16)).toEqual([]);
   });
+  it("keeps timeline beats when collected without a loop length", () => {
+    const r = new TakeRecorder();
+    r.noteOn(60, 0.8, 30);
+    r.noteOff(60, 31.5);
+    r.noteOn(62, 0.8, 70);
+    const notes = r.flushAll(72);
+    expect(notes.map((x) => [x.startBeat, x.durationBeats])).toEqual([
+      [30, 1.5],
+      [70, 2],
+    ]);
+  });
 });
