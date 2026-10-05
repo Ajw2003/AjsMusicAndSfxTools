@@ -77,6 +77,9 @@
   let selectedClipId = $state<string | null>(null);
   /** Where recorded notes go (a clip, or where a new clip will start). */
   let recordTargetNow = $state<RecordTarget | null>(null);
+  /** Notes the target clip had before this take; shown so layering a take
+      on top of them is never a surprise (#99). */
+  let notesAlreadyThere = $state(0);
   /** The song right after this take's last stored bar; later bars of the
       same take are folded into that undo step while nothing else changed. */
   let takeSong: Song | null = null;
@@ -521,6 +524,11 @@
 
   function aimRecording(target: RecordTarget): void {
     recordTargetNow = target;
+    const content =
+      target.kind === "clip"
+        ? findClip(history.song, target.clipId)?.clip.content
+        : undefined;
+    notesAlreadyThere = content?.kind === "notes" ? content.notes.length : 0;
     if (target.kind === "clip") selectedClipId = target.clipId;
     prevBeat = null;
   }
@@ -834,7 +842,16 @@
     {#if recordingInto !== null}
       <div class="rec-bar" role="status">
         <span class="rec-dot" aria-hidden="true"></span>
-        Recording into {recordingInto} — press Record to stop
+        <span>
+          Recording into {recordingInto} — press Record to stop
+          {#if notesAlreadyThere > 0}
+            <span class="rec-adding">
+              Adding to {notesAlreadyThere}
+              {notesAlreadyThere === 1 ? "note" : "notes"} already there. Undo removes
+              this take.
+            </span>
+          {/if}
+        </span>
       </div>
     {/if}
   {/snippet}
@@ -1165,6 +1182,10 @@
     color: #ffffff;
     background: #b00020;
     border-bottom: 2px solid #ffffff;
+  }
+  .rec-adding {
+    display: block;
+    font-size: 1rem;
   }
   .rec-dot {
     flex: none;

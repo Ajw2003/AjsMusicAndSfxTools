@@ -1637,6 +1637,40 @@ async function accessibilityScan(browser) {
   }
 }
 
+/** #99: recording on top of notes already in a clip says so in words. */
+async function layeringWarning(browser) {
+  const { context, page } = await start(browser, { width: 1280, height: 800 });
+  await openSong(
+    page,
+    songFile(120, [clip("A", 0, 8, 8, [note("n1", 60, 0), note("n2", 62, 1)])]),
+    "layering.ajsong.json",
+  );
+  const record = page.getByRole("button", { name: "Record", exact: true });
+  await page.locator("[data-clip-id]").first().click();
+  await record.click();
+  await page.locator(".rec-bar").waitFor();
+  check(
+    "recording into a clip with notes says how many are there",
+    (await page.locator(".rec-bar").textContent())
+      .replace(/\s+/g, " ")
+      .includes("Adding to 2 notes already there"),
+  );
+  await record.click();
+  await page.waitForTimeout(150);
+  // Past the clip, on an empty stretch: a new clip, so no warning.
+  await page.keyboard.press("Escape");
+  await page.locator("[data-clip-id]").first().click();
+  await page.getByRole("button", { name: "Delete clip" }).click();
+  await record.click();
+  await page.locator(".rec-bar").waitFor();
+  check(
+    "recording into an empty stretch shows no layering warning",
+    (await page.locator(".rec-adding").count()) === 0,
+  );
+  await record.click();
+  await context.close();
+}
+
 /** Owner report #95 / #98: fast key presses dropped notes and glitched. */
 async function keySpam(browser) {
   const { context, page } = await start(browser, { width: 1280, height: 800 });
@@ -1696,6 +1730,7 @@ async function startPreview() {
     await phoneLargeText(browser);
     await focusAids(browser);
     await keySpam(browser);
+    await layeringWarning(browser);
     await accessibilityScan(browser);
   } finally {
     await browser.close();
