@@ -1637,6 +1637,28 @@ async function accessibilityScan(browser) {
   }
 }
 
+/** Owner report #95 / #98: fast key presses dropped notes and glitched. */
+async function keySpam(browser) {
+  const { context, page } = await start(browser, { width: 1280, height: 800 });
+  let dropped = 0;
+  page.on("console", (m) => {
+    if (/polyphony exceeded/i.test(m.text())) dropped++;
+  });
+  const keys = ["a", "s", "d", "f", "g", "h", "j", "w", "e"];
+  for (let i = 0; i < 300; i++) {
+    await page.keyboard.down(keys[i % keys.length]);
+    if (i % 2) await page.keyboard.up(keys[(i - 1) % keys.length]);
+  }
+  for (const k of keys) await page.keyboard.up(k);
+  await page.waitForTimeout(300);
+  check(
+    "300 fast key presses drop no notes",
+    dropped === 0,
+    `${dropped} dropped`,
+  );
+  await context.close();
+}
+
 async function startPreview() {
   const { preview } = await import("vite");
   const server = await preview({ preview: { port: 4173, open: false } });
@@ -1673,6 +1695,7 @@ async function startPreview() {
     await readingSettings(browser);
     await phoneLargeText(browser);
     await focusAids(browser);
+    await keySpam(browser);
     await accessibilityScan(browser);
   } finally {
     await browser.close();

@@ -16,6 +16,10 @@ import {
 /** Ticks per quarter note used for all transport scheduling (bpm-independent). */
 const PPQ = 192;
 const TAIL_SECONDS = 1;
+/** Voices one polyphonic track may sound at once, release tails included. */
+const MAX_POLYPHONY = 96;
+/** Notes held by hand at once; one more lets go of the oldest (#98). */
+const MAX_HELD_NOTES = 10;
 
 /** Velocity after a clip's gain in dB (0 dB leaves it unchanged), kept in 0..1. */
 function withGain(velocity: number, gainDb: number): number {
@@ -146,15 +150,42 @@ function buildPitchedVoice(preset: ChiptunePreset): Voice {
   } as Partial<Tone.SynthOptions>;
 
   if (preset.isPolyphonic) {
-    const synth = new Tone.PolySynth(Tone.Synth, options).connect(output);
+    const synth = new Tone.PolySynth({
+      voice: Tone.Synth,
+      options,
+      // Room for release tails on top of held notes, so fast playing never
+      // hits the limit (Tone drops the new note when it does).
+      maxPolyphony: MAX_POLYPHONY,
+    }).connect(output);
+    // Live-held notes, oldest first (a Set keeps insertion order).
+    const held = new Set<number>();
     return {
       output,
-      attack: (midi, velocity, time) =>
-        synth.triggerAttack(toHz(midi), time, velocity),
-      release: (midi, time) => synth.triggerRelease(toHz(midi), time),
+      attack(midi, velocity, time) {
+        // A note already held (a chord pad and a key sharing a pitch)
+        // replaces its earlier copy rather than stacking a second one.
+        if (held.has(midi)) {
+          synth.triggerRelease(toHz(midi), time);
+          held.delete(midi);
+        }
+        if (held.size >= MAX_HELD_NOTES) {
+          const oldest = held.values().next().value as number;
+          synth.triggerRelease(toHz(oldest), time);
+          held.delete(oldest);
+        }
+        held.add(midi);
+        synth.triggerAttack(toHz(midi), time, velocity);
+      },
+      release(midi, time) {
+        if (!held.delete(midi)) return;
+        synth.triggerRelease(toHz(midi), time);
+      },
       play: (midi, seconds, velocity, time) =>
         synth.triggerAttackRelease(toHz(midi), seconds, time, velocity),
-      releaseAll: (time) => synth.releaseAll(time),
+      releaseAll(time) {
+        held.clear();
+        synth.releaseAll(time);
+      },
       dispose() {
         synth.dispose();
         output.dispose();
