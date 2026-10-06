@@ -5,6 +5,26 @@ Append-only. Newest at the top. An old entry is never rewritten; when one is rep
 
 ---
 
+## 2026-10-06 — Polyphonic chiptune tracks use our own voice pool, not Tone's PolySynth
+
+**Context.** The owner reported (#95) that spamming keys stutters and glitches. Measured: Tone's `PolySynth`
+drops any note past its voice limit ("Max polyphony exceeded. Note dropped.") and only takes back finished
+voices on a once-a-second timer (`_collectGarbage` in `node_modules/tone/build/esm/instrument/PolySynth.js`).
+A fast run of notes therefore needs a fresh voice per note; 300 presses in one burst dropped 204. Raising the
+limit to 96 only made it rarer (7 dropped in one of four busy test runs).
+
+**Decision.** Polyphonic tracks share a pool of 32 `Tone.Synth` voices (`buildVoicePool` in
+`src/lib/audio/engine.ts`). A voice is free again as soon as its release ends; when all are busy the oldest
+note (fading notes before held ones) is taken over, so a played note is never dropped. At most 10 notes are held
+by hand at once.
+
+**Why.** Deterministic, with no timer to fall behind. Rejected: a still higher PolySynth limit (same race, more
+voices built in a burst), limiting how fast notes can be played (drops notes the player meant).
+
+**Status.** Standing.
+
+---
+
 ## 2026-10-05 — Recording runs on in a straight line, not as a loop pedal
 
 **Context.** Since #76, Record looped the transport over the target clip's first pass (16 beats for a new

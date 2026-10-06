@@ -2,6 +2,7 @@
   import { engine } from "../lib/audio/engine";
   import type { Song } from "../lib/song/song";
   import { createSong } from "../lib/song/song";
+  import { hasMidiNotes, encodeMidi, midiExportNotes } from "../lib/song/midi";
   import { parseSong, serializeSong } from "../lib/song/storage";
 
   interface Props {
@@ -58,6 +59,16 @@
     }
   }
 
+  function downloadMidi(): void {
+    if (!hasMidiNotes(song)) {
+      fail("There are no notes to put in a MIDI file.");
+      return;
+    }
+    download(encodeMidi(song), "audio/midi", "ajs-song.mid");
+    isError = false;
+    message = `Saved ajs-song.mid. ${midiExportNotes(song).join(" ")}`;
+  }
+
   function saveProject(): void {
     download(serializeSong(song), "application/json", "ajs-song.ajsong.json");
     isError = false;
@@ -111,6 +122,7 @@
     <button type="button" disabled={isRendering} onclick={downloadWav}>
       {isRendering ? "Rendering…" : "Download WAV"}
     </button>
+    <button type="button" onclick={downloadMidi}>Download MIDI</button>
     <button type="button" onclick={saveProject}>Save project</button>
     <button type="button" onclick={() => fileInput.click()}>
       Open project

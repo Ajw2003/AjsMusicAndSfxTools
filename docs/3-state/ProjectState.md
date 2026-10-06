@@ -1,6 +1,6 @@
 # Project state (tier 3): where it stands right now
 
-**As of 2026-10-04. Overall: about 20% of 100%. M0 built; a chiptune song prototype (#68) covers
+**As of 2026-10-06. Overall: about 20% of 100%. M0 built; a chiptune song prototype (#68) covers
 most of M1 and parts of M2, M5, M6 and M7 but no milestone is fully done.**
 
 M0 is built: docs, issues, an empty app that builds, code checks and CI, which passed on GitHub on
@@ -14,11 +14,11 @@ projects and download a WAV. Checked by a headless-browser run (21/21 checks, de
 | M1: Playable keyboard | 10% | Mostly built (latency #15 not measured; owner test pending) | #6 |
 | M2: Instruments | 15% | Chiptune only (#25); no samples | #16 |
 | M3: Customising sounds and keys | 10% | Not started | #28 |
-| M4: Themes and accessibility | 10% | Usability pass #84 built (reading settings, axe scan); themes, modes not started | #34 |
+| M4: Themes and accessibility | 10% | Usability pass #84 built (reading settings, axe scan), Reduce motion (#38, not merged); themes, modes not started | #34 |
 | M5: Record and loop | 10% | Mostly built (loop mode, undo, autosave, metronome, quantize) | #42 |
-| M6: Save and export | 10% | Project files + WAV built; MP3/OGG, MIDI, options not | #51 |
+| M6: Save and export | 10% | Project files, WAV and MIDI (#55, not merged) built; MP3/OGG, options not | #51 |
 | M7: Piano roll and step sequencer | 10% | Read-only loop view only | #57 |
-| M8: Installable, offline and polished | 5% | Not started | #62 |
+| M8: Installable, offline and polished | 5% | About panel (#66, not merged); rest not started | #62 |
 | M9: Arranger | 15% | Phases A (#71–#76, PR #83) and B (#77, #78, PR #85) live; C, D not started | #70 |
 
 ## M0: Foundation
@@ -107,6 +107,37 @@ Plan: `docs/plans/arranger-timeline.md`. Handoff detail: `docs/5-today/Today.md`
   undo step per take. Checked: 134 unit tests; `npm run test:e2e` 207/207 ("ALL PASS") three runs in a row,
   including an 8-bar take into a 4-bar clip with a backing track (every backing note heard once while bars are
   stored). Also fixed: two-digit bar numbers on the ruler stacked as "1 / 0". Not yet tried by the owner.
+
+## Backlog pass, 2026-10-05/06 (branch `claude/cool-rubin-me4hf8`, not merged)
+
+Issues picked because they needed no owner decision first.
+
+- **Fast key presses dropped notes (#98, half of the owner's #95):** Tone's PolySynth dropped notes past its
+  voice limit and only took back finished voices once a second, so 300 presses in one burst dropped 204.
+  Polyphonic tracks now use our own pool of 32 voices that takes over the oldest note instead (see Decisions,
+  2026-10-06). At most 10 notes are held by hand. Checked: the same burst drops 0 (browser check, two full
+  runs "ALL PASS"), and song playback and WAV timing checks still pass through the pool. Not checked: heard by
+  a person.
+- **Layering warning (#99, other half of #95):** recording into a clip that already has notes shows "Adding to
+  N notes already there. Undo removes this take." on the recording bar. Screenshots looked at, desktop and
+  390 px phone. Whether to add a Replace recording mode is an open question on #99.
+- **MIDI export (#55):** "Download MIDI" in Save & export writes a format-1 `.mid` (`src/lib/song/midi.ts`):
+  one track per unmuted note track, clip repeats and transpose applied, clip gain in the velocity, square and
+  pulse as GM Lead 1, triangle as GM Synth Bass 1, noise drums on channel 10 as kick 36 / snare 38 / hi-hat 42.
+  The message says what is left out. Checked: 8 unit tests that parse the file back; browser check downloads
+  it and finds 3 note-ons for 3 notes. Not checked: opened in MuseScore (the issue's done-when), as there is
+  no MuseScore here.
+- **Reduce motion (#38):** Reading has a Motion choice, "Follow my device" (default) or "Reduce motion",
+  remembered in the browser. Either way no transitions, animations or smooth scrolling run (`src/app.css`).
+  Checked: browser checks that the keys' transition is 0 s with the choice on, after a reload, and with the
+  device setting on.
+- **About panel (#66):** a last "About" tab shows the version and build, the MIT licence, a link to the source,
+  and every credit read straight from `CREDITS.md` at build time (`src/lib/credits.ts`), so the two can't drift.
+  Phones show one card per credit. Checked: every font credit appears; no sideways scroll at 360 px; axe 0 issues
+  desktop and phone; screenshots looked at (an earlier version split words letter by letter, fixed).
+- **Research only, waiting on the owner:** MP3/OGG encoder pick (#54, `docs/plans/mp3-ogg-export.md`) and sample
+  pack candidates (#17, `docs/plans/sample-sources.md`); questions posted on both issues.
+- **All checks on the branch head:** 147 unit tests; `npm run test:e2e` "ALL PASS".
 
 ## The one thing that is not what it looks like
 

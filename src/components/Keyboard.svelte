@@ -433,7 +433,7 @@
     }
   }
   @media (prefers-reduced-motion: no-preference) {
-    .key {
+    :global(:root:not([data-motion="reduce"])) .key {
       transition:
         background-color 0.08s,
         box-shadow 0.12s;

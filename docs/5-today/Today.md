@@ -1,8 +1,24 @@
-# Today (tier 5): 2026-10-04, handoff (usability pass built, awaiting review)
+# Today (tier 5): 2026-10-06, handoff (backlog pass built, awaiting review)
 
-**Read this first, then [ProjectState](../3-state/ProjectState.md) and [the arranger plan](../plans/arranger-timeline.md).**
+**Read this first, then [ProjectState](../3-state/ProjectState.md).**
 
-## Where things are
+## This session (branch `claude/cool-rubin-me4hf8`, pushed, no PR yet)
+
+Built, issues that needed no owner decision: #98 (fast key presses dropped notes; own voice pool), #99
+(recording bar warns when a take adds to existing notes), #55 (Download MIDI), #38 (Reduce motion), #66 (About
+panel with credits). All checks pass on the branch head: 147 unit tests, `npm run test:e2e` "ALL PASS".
+
+Waiting on the owner:
+
+- #99: add a Replace recording mode? (options on the issue)
+- #54: OK to add `mediabunny` + `@mediabunny/mp3-encoder` for MP3/OGG? (`docs/plans/mp3-ogg-export.md`)
+- #17: CC BY / CC BY-SA samples OK, size budget? (`docs/plans/sample-sources.md`)
+- #55 done-when: open the MIDI file in MuseScore (no MuseScore here).
+- Try #95's fix by ear: spam keys, then record.
+
+## Earlier handoff (2026-10-04)
+
+### Where things were
 
 - **Live site** (https://ajw2003.github.io/AjsMusicAndSfxTools/) = `main` = arranger phases A and B (PR #83,
   PR #85, both merged by the owner; CI green; deploys succeeded). Not opened in a browser by the agent: this

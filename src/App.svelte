@@ -6,6 +6,7 @@
   import Keyboard from "./components/Keyboard.svelte";
   import RecordingSettings from "./components/RecordingSettings.svelte";
   import SongFileBar from "./components/SongFileBar.svelte";
+  import AboutPanel from "./components/AboutPanel.svelte";
   import ReadingSettings from "./components/ReadingSettings.svelte";
   import SongSettings from "./components/SongSettings.svelte";
   import StartOverlay from "./components/StartOverlay.svelte";
@@ -77,6 +78,9 @@
   let selectedClipId = $state<string | null>(null);
   /** Where recorded notes go (a clip, or where a new clip will start). */
   let recordTargetNow = $state<RecordTarget | null>(null);
+  /** Notes the target clip had before this take; shown so layering a take
+      on top of them is never a surprise (#99). */
+  let notesAlreadyThere = $state(0);
   /** The song right after this take's last stored bar; later bars of the
       same take are folded into that undo step while nothing else changed. */
   let takeSong: Song | null = null;
@@ -94,7 +98,8 @@
     | "timeline"
     | "song"
     | "reading"
-    | "files";
+    | "files"
+    | "about";
   const PANELS: { id: PanelId; label: string }[] = [
     { id: "track", label: "Track" },
     { id: "clip", label: "Clip" },
@@ -104,6 +109,7 @@
     { id: "song", label: "Song" },
     { id: "reading", label: "Reading" },
     { id: "files", label: "Save & export" },
+    { id: "about", label: "About" },
   ];
   const PANEL_KEY = "ajs-music.ui.panel";
   const KEYBOARD_KEY = "ajs-music.ui.keyboard-hidden";
@@ -521,6 +527,11 @@
 
   function aimRecording(target: RecordTarget): void {
     recordTargetNow = target;
+    const content =
+      target.kind === "clip"
+        ? findClip(history.song, target.clipId)?.clip.content
+        : undefined;
+    notesAlreadyThere = content?.kind === "notes" ? content.notes.length : 0;
     if (target.kind === "clip") selectedClipId = target.clipId;
     prevBeat = null;
   }
@@ -834,7 +845,16 @@
     {#if recordingInto !== null}
       <div class="rec-bar" role="status">
         <span class="rec-dot" aria-hidden="true"></span>
-        Recording into {recordingInto} — press Record to stop
+        <span>
+          Recording into {recordingInto} — press Record to stop
+          {#if notesAlreadyThere > 0}
+            <span class="rec-adding">
+              Adding to {notesAlreadyThere}
+              {notesAlreadyThere === 1 ? "note" : "notes"} already there. Undo removes
+              this take.
+            </span>
+          {/if}
+        </span>
       </div>
     {/if}
   {/snippet}
@@ -1031,6 +1051,8 @@
       <ReadingSettings />
     {:else if openPanel === "files"}
       <SongFileBar {song} {onReplace} />
+    {:else if openPanel === "about"}
+      <AboutPanel />
     {/if}
   </div>
 
@@ -1165,6 +1187,10 @@
     color: #ffffff;
     background: #b00020;
     border-bottom: 2px solid #ffffff;
+  }
+  .rec-adding {
+    display: block;
+    font-size: 1rem;
   }
   .rec-dot {
     flex: none;

@@ -9,7 +9,14 @@ export default tseslint.config(
   ...tseslint.configs.recommended,
   ...svelte.configs.recommended,
   {
-    languageOptions: { globals: { ...globals.browser } },
+    languageOptions: {
+      globals: {
+        ...globals.browser,
+        // Filled in at build time by vite.config.ts.
+        __APP_VERSION__: "readonly",
+        __APP_COMMIT__: "readonly",
+      },
+    },
   },
   {
     files: ["**/*.svelte", "**/*.svelte.ts"],

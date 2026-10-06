@@ -1594,6 +1594,7 @@ async function accessibilityScan(browser) {
         "Song",
         "Reading",
         "Save & export",
+        "About",
       ]) {
         await openPanel(page, label);
         await scan(page, `${label} panel`);
@@ -1637,6 +1638,197 @@ async function accessibilityScan(browser) {
   }
 }
 
+/** #99: recording on top of notes already in a clip says so in words. */
+async function layeringWarning(browser) {
+  const { context, page } = await start(browser, { width: 1280, height: 800 });
+  await openSong(
+    page,
+    songFile(120, [clip("A", 0, 8, 8, [note("n1", 60, 0), note("n2", 62, 1)])]),
+    "layering.ajsong.json",
+  );
+  const record = page.getByRole("button", { name: "Record", exact: true });
+  await page.locator("[data-clip-id]").first().click();
+  await record.click();
+  await page.locator(".rec-bar").waitFor();
+  check(
+    "recording into a clip with notes says how many are there",
+    (await page.locator(".rec-bar").textContent())
+      .replace(/\s+/g, " ")
+      .includes("Adding to 2 notes already there"),
+  );
+  await record.click();
+  await page.waitForTimeout(150);
+  // Past the clip, on an empty stretch: a new clip, so no warning.
+  await page.keyboard.press("Escape");
+  await page.locator("[data-clip-id]").first().click();
+  await page.getByRole("button", { name: "Delete clip" }).click();
+  await record.click();
+  await page.locator(".rec-bar").waitFor();
+  check(
+    "recording into an empty stretch shows no layering warning",
+    (await page.locator(".rec-adding").count()) === 0,
+  );
+  await record.click();
+  await context.close();
+}
+
+/**
+ * Owner report #95 / #98: fast key presses dropped notes and glitched.
+ * 300 presses in one burst need more voices than a track has; Tone's
+ * PolySynth dropped 204 of them ("Max polyphony exceeded"), the voice
+ * pool takes over the oldest note instead.
+ */
+async function keySpam(browser) {
+  const { context, page } = await start(browser, { width: 1280, height: 800 });
+  let dropped = 0;
+  page.on("console", (m) => {
+    if (/polyphony exceeded/i.test(m.text())) dropped++;
+  });
+  await page.evaluate(() => {
+    const keys = ["A", "S", "D", "F", "G", "H", "J", "W", "E"];
+    for (let i = 0; i < 300; i++) {
+      const code = `Key${keys[i % keys.length]}`;
+      window.dispatchEvent(new KeyboardEvent("keydown", { code }));
+      window.dispatchEvent(new KeyboardEvent("keyup", { code }));
+    }
+  });
+  await page.waitForTimeout(300);
+  check(
+    "a burst of 300 key presses drops no notes",
+    dropped === 0,
+    `${dropped} dropped`,
+  );
+  await context.close();
+}
+
+/** Issue #55: Download MIDI writes a real .mid with the song's notes. */
+async function midiExport(browser) {
+  const { context, page } = await start(browser, { width: 1280, height: 800 });
+  await openSong(
+    page,
+    songFile(120, [
+      clip("c1", 0, 4, 4, [
+        note("n1", 60, 0),
+        note("n2", 62, 1),
+        note("n3", 64, 2),
+      ]),
+    ]),
+    "midi.ajsong.json",
+  );
+  const download = page.waitForEvent("download");
+  await openPanel(page, "Save & export");
+  await page.getByRole("button", { name: "Download MIDI" }).click();
+  const file = await (await download).path();
+  const bytes = fs.readFileSync(file);
+  check(
+    "MIDI file starts with MThd",
+    bytes.toString("latin1", 0, 4) === "MThd",
+  );
+  // Walk each MTrk chunk: skip delta, then read events.
+  let noteOns = 0;
+  let p = 14;
+  while (p < bytes.length) {
+    const end = p + 8 + bytes.readUInt32BE(p + 4);
+    p += 8;
+    while (p < end) {
+      while (bytes[p] & 0x80) p++;
+      p++;
+      const status = bytes[p++];
+      if (status === 0xff) {
+        p++;
+        p += bytes[p] + 1;
+      } else if ((status & 0xf0) === 0xc0) {
+        p += 1;
+      } else {
+        if ((status & 0xf0) === 0x90 && bytes[p + 1] > 0) noteOns++;
+        p += 2;
+      }
+    }
+  }
+  check("MIDI file has exactly 3 note-on events", noteOns === 3, `${noteOns}`);
+  check(
+    "MIDI export says it saved the file",
+    (await page.getByRole("status").allTextContents()).some((t) =>
+      t.includes("Saved ajs-song.mid"),
+    ),
+  );
+  await context.close();
+}
+
+async function reducedMotion(browser) {
+  const keyDurations = (page) =>
+    page.evaluate(
+      () => getComputedStyle(document.querySelector(".key")).transitionDuration,
+    );
+  const allZero = (d) => d.split(",").every((v) => parseFloat(v) === 0);
+
+  // Chosen under Reading: applied now, and remembered after a reload.
+  const { context, page } = await start(browser, { width: 1280, height: 800 });
+  await openPanel(page, "Reading");
+  await page
+    .getByRole("group", { name: "Motion" })
+    .getByLabel("Reduce motion", { exact: true })
+    .check();
+  const chosen = await keyDurations(page);
+  check("Reduce motion stops key transitions", allZero(chosen), chosen);
+  check(
+    "Reduce motion is set on the page",
+    (await page.evaluate(() => document.documentElement.dataset.motion)) ===
+      "reduce",
+  );
+  await page.reload();
+  check(
+    "Reduce motion is remembered after a reload",
+    (await page.evaluate(() => document.documentElement.dataset.motion)) ===
+      "reduce",
+  );
+  await context.close();
+
+  // The device asks for less motion; the setting stays on "Follow my device".
+  const deviceContext = await browser.newContext({ reducedMotion: "reduce" });
+  const devicePage = await deviceContext.newPage();
+  await devicePage.goto(URL);
+  await devicePage
+    .getByRole("button", { name: /press any key to start/i })
+    .click();
+  await devicePage.waitForTimeout(300);
+  const followed = await keyDurations(devicePage);
+  check(
+    "Device reduce-motion stops key transitions",
+    allZero(followed),
+    followed,
+  );
+  await deviceContext.close();
+}
+
+/** About (#66): version, licence, every font credit; no sideways scroll on a phone. */
+async function aboutPanel(browser) {
+  const md = fs.readFileSync(path.join(__dirname, "..", "CREDITS.md"), "utf8");
+  const fonts = md
+    .split("## Fonts")[1]
+    .split("\n")
+    .filter((l) => l.startsWith("|"))
+    .slice(2)
+    .map((l) => l.split("|")[1].trim());
+  check("CREDITS.md lists fonts", fonts.length >= 3, fonts.join(","));
+
+  const { context, page } = await start(browser, { width: 1280, height: 800 });
+  await openPanel(page, "About");
+  const text = await page.locator("section.about").innerText();
+  check("About mentions the MIT licence", text.includes("MIT"));
+  check("About shows the version", text.includes("Version"));
+  for (const f of fonts) check(`About credits ${f}`, text.includes(f));
+  await context.close();
+
+  const phone = await start(browser, { width: 360, height: 740 });
+  await openPanel(phone.page, "About");
+  const fits = await phone.page.evaluate(
+    () => document.documentElement.scrollWidth <= window.innerWidth,
+  );
+  check("About causes no sideways scroll at 360px", fits);
+  await phone.context.close();
+}
+
 async function startPreview() {
   const { preview } = await import("vite");
   const server = await preview({ preview: { port: 4173, open: false } });
@@ -1673,6 +1865,11 @@ async function startPreview() {
     await readingSettings(browser);
     await phoneLargeText(browser);
     await focusAids(browser);
+    await keySpam(browser);
+    await layeringWarning(browser);
+    await midiExport(browser);
+    await reducedMotion(browser);
+    await aboutPanel(browser);
     await accessibilityScan(browser);
   } finally {
     await browser.close();
