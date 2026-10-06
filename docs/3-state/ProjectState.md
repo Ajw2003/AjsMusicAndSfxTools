@@ -18,7 +18,7 @@ projects and download a WAV. Checked by a headless-browser run (21/21 checks, de
 | M5: Record and loop | 10% | Mostly built (loop mode, undo, autosave, metronome, quantize) | #42 |
 | M6: Save and export | 10% | Project files, WAV and MIDI (#55, not merged) built; MP3/OGG, options not | #51 |
 | M7: Piano roll and step sequencer | 10% | Read-only loop view only | #57 |
-| M8: Installable, offline and polished | 5% | Not started | #62 |
+| M8: Installable, offline and polished | 5% | About panel (#66, not merged); rest not started | #62 |
 | M9: Arranger | 15% | Phases A (#71–#76, PR #83) and B (#77, #78, PR #85) live; C, D not started | #70 |
 
 ## M0: Foundation
@@ -131,7 +131,13 @@ Issues picked because they needed no owner decision first.
   remembered in the browser. Either way no transitions, animations or smooth scrolling run (`src/app.css`).
   Checked: browser checks that the keys' transition is 0 s with the choice on, after a reload, and with the
   device setting on.
-- **All checks on the branch head:** 142 unit tests; `npm run test:e2e` "ALL PASS".
+- **About panel (#66):** a last "About" tab shows the version and build, the MIT licence, a link to the source,
+  and every credit read straight from `CREDITS.md` at build time (`src/lib/credits.ts`), so the two can't drift.
+  Phones show one card per credit. Checked: every font credit appears; no sideways scroll at 360 px; axe 0 issues
+  desktop and phone; screenshots looked at (an earlier version split words letter by letter, fixed).
+- **Research only, waiting on the owner:** MP3/OGG encoder pick (#54, `docs/plans/mp3-ogg-export.md`) and sample
+  pack candidates (#17, `docs/plans/sample-sources.md`); questions posted on both issues.
+- **All checks on the branch head:** 147 unit tests; `npm run test:e2e` "ALL PASS".
 
 ## The one thing that is not what it looks like
 
