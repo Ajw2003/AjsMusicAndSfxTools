@@ -1,6 +1,7 @@
 <script lang="ts">
   import {
     FONTS,
+    MOTIONS,
     SPACINGS,
     TEXT_SIZES,
     applyReading,
@@ -58,6 +59,21 @@
           onchange={choose}
         />
         {s.label}
+      </label>
+    {/each}
+  </fieldset>
+  <fieldset>
+    <legend>Motion</legend>
+    {#each MOTIONS as m (m.id)}
+      <label>
+        <input
+          type="radio"
+          name="reading-motion"
+          value={m.id}
+          bind:group={reading.motion}
+          onchange={choose}
+        />
+        {m.label}
       </label>
     {/each}
   </fieldset>

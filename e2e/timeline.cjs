@@ -1747,6 +1747,52 @@ async function midiExport(browser) {
   await context.close();
 }
 
+async function reducedMotion(browser) {
+  const keyDurations = (page) =>
+    page.evaluate(
+      () => getComputedStyle(document.querySelector(".key")).transitionDuration,
+    );
+  const allZero = (d) => d.split(",").every((v) => parseFloat(v) === 0);
+
+  // Chosen under Reading: applied now, and remembered after a reload.
+  const { context, page } = await start(browser, { width: 1280, height: 800 });
+  await openPanel(page, "Reading");
+  await page
+    .getByRole("group", { name: "Motion" })
+    .getByLabel("Reduce motion", { exact: true })
+    .check();
+  const chosen = await keyDurations(page);
+  check("Reduce motion stops key transitions", allZero(chosen), chosen);
+  check(
+    "Reduce motion is set on the page",
+    (await page.evaluate(() => document.documentElement.dataset.motion)) ===
+      "reduce",
+  );
+  await page.reload();
+  check(
+    "Reduce motion is remembered after a reload",
+    (await page.evaluate(() => document.documentElement.dataset.motion)) ===
+      "reduce",
+  );
+  await context.close();
+
+  // The device asks for less motion; the setting stays on "Follow my device".
+  const deviceContext = await browser.newContext({ reducedMotion: "reduce" });
+  const devicePage = await deviceContext.newPage();
+  await devicePage.goto(URL);
+  await devicePage
+    .getByRole("button", { name: /press any key to start/i })
+    .click();
+  await devicePage.waitForTimeout(300);
+  const followed = await keyDurations(devicePage);
+  check(
+    "Device reduce-motion stops key transitions",
+    allZero(followed),
+    followed,
+  );
+  await deviceContext.close();
+}
+
 async function startPreview() {
   const { preview } = await import("vite");
   const server = await preview({ preview: { port: 4173, open: false } });
@@ -1786,6 +1832,7 @@ async function startPreview() {
     await keySpam(browser);
     await layeringWarning(browser);
     await midiExport(browser);
+    await reducedMotion(browser);
     await accessibilityScan(browser);
   } finally {
     await browser.close();
