@@ -14,11 +14,11 @@ projects and download a WAV. Checked by a headless-browser run (21/21 checks, de
 | M1: Playable keyboard | 10% | Mostly built (latency #15 not measured; owner test pending) | #6 |
 | M2: Instruments | 15% | Chiptune only (#25); no samples | #16 |
 | M3: Customising sounds and keys | 10% | Not started | #28 |
-| M4: Themes and accessibility | 10% | Usability pass #84 built (reading settings, axe scan), Reduce motion (#38, not merged); themes, modes not started | #34 |
+| M4: Themes and accessibility | 10% | Usability pass #84 built (reading settings, axe scan), Reduce motion (#38); themes, modes not started | #34 |
 | M5: Record and loop | 10% | Mostly built (loop mode, undo, autosave, metronome, quantize) | #42 |
-| M6: Save and export | 10% | Project files, WAV and MIDI (#55, not merged) built; MP3/OGG, options not | #51 |
+| M6: Save and export | 10% | Project files, WAV and MIDI (#55) built; MP3/OGG, options not | #51 |
 | M7: Piano roll and step sequencer | 10% | Read-only loop view only | #57 |
-| M8: Installable, offline and polished | 5% | About panel (#66, not merged); rest not started | #62 |
+| M8: Installable, offline and polished | 5% | About panel (#66); rest not started | #62 |
 | M9: Arranger | 15% | Phases A (#71–#76, PR #83) and B (#77, #78, PR #85) live; C, D not started | #70 |
 
 ## M0: Foundation
@@ -108,7 +108,7 @@ Plan: `docs/plans/arranger-timeline.md`. Handoff detail: `docs/5-today/Today.md`
   including an 8-bar take into a 4-bar clip with a backing track (every backing note heard once while bars are
   stored). Also fixed: two-digit bar numbers on the ruler stacked as "1 / 0". Not yet tried by the owner.
 
-## Backlog pass, 2026-10-05/06 (branch `claude/cool-rubin-me4hf8`, not merged)
+## Backlog pass, 2026-10-05/06 (merged 2026-10-06, PR #100)
 
 Issues picked because they needed no owner decision first.
 

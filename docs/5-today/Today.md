@@ -2,7 +2,7 @@
 
 **Read this first, then [ProjectState](../3-state/ProjectState.md).**
 
-## This session (branch `claude/cool-rubin-me4hf8`, pushed, no PR yet)
+## This session (merged by the owner 2026-10-06, PR #100; live after the Pages deploy)
 
 Built, issues that needed no owner decision: #98 (fast key presses dropped notes; own voice pool), #99
 (recording bar warns when a take adds to existing notes), #55 (Download MIDI), #38 (Reduce motion), #66 (About
