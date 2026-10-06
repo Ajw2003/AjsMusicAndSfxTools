@@ -1594,6 +1594,7 @@ async function accessibilityScan(browser) {
         "Song",
         "Reading",
         "Save & export",
+        "About",
       ]) {
         await openPanel(page, label);
         await scan(page, `${label} panel`);
@@ -1800,6 +1801,34 @@ async function reducedMotion(browser) {
   await deviceContext.close();
 }
 
+/** About (#66): version, licence, every font credit; no sideways scroll on a phone. */
+async function aboutPanel(browser) {
+  const md = fs.readFileSync(path.join(__dirname, "..", "CREDITS.md"), "utf8");
+  const fonts = md
+    .split("## Fonts")[1]
+    .split("\n")
+    .filter((l) => l.startsWith("|"))
+    .slice(2)
+    .map((l) => l.split("|")[1].trim());
+  check("CREDITS.md lists fonts", fonts.length >= 3, fonts.join(","));
+
+  const { context, page } = await start(browser, { width: 1280, height: 800 });
+  await openPanel(page, "About");
+  const text = await page.locator("section.about").innerText();
+  check("About mentions the MIT licence", text.includes("MIT"));
+  check("About shows the version", text.includes("Version"));
+  for (const f of fonts) check(`About credits ${f}`, text.includes(f));
+  await context.close();
+
+  const phone = await start(browser, { width: 360, height: 740 });
+  await openPanel(phone.page, "About");
+  const fits = await phone.page.evaluate(
+    () => document.documentElement.scrollWidth <= window.innerWidth,
+  );
+  check("About causes no sideways scroll at 360px", fits);
+  await phone.context.close();
+}
+
 async function startPreview() {
   const { preview } = await import("vite");
   const server = await preview({ preview: { port: 4173, open: false } });
@@ -1840,6 +1869,7 @@ async function startPreview() {
     await layeringWarning(browser);
     await midiExport(browser);
     await reducedMotion(browser);
+    await aboutPanel(browser);
     await accessibilityScan(browser);
   } finally {
     await browser.close();

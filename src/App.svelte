@@ -6,6 +6,7 @@
   import Keyboard from "./components/Keyboard.svelte";
   import RecordingSettings from "./components/RecordingSettings.svelte";
   import SongFileBar from "./components/SongFileBar.svelte";
+  import AboutPanel from "./components/AboutPanel.svelte";
   import ReadingSettings from "./components/ReadingSettings.svelte";
   import SongSettings from "./components/SongSettings.svelte";
   import StartOverlay from "./components/StartOverlay.svelte";
@@ -97,7 +98,8 @@
     | "timeline"
     | "song"
     | "reading"
-    | "files";
+    | "files"
+    | "about";
   const PANELS: { id: PanelId; label: string }[] = [
     { id: "track", label: "Track" },
     { id: "clip", label: "Clip" },
@@ -107,6 +109,7 @@
     { id: "song", label: "Song" },
     { id: "reading", label: "Reading" },
     { id: "files", label: "Save & export" },
+    { id: "about", label: "About" },
   ];
   const PANEL_KEY = "ajs-music.ui.panel";
   const KEYBOARD_KEY = "ajs-music.ui.keyboard-hidden";
@@ -1048,6 +1051,8 @@
       <ReadingSettings />
     {:else if openPanel === "files"}
       <SongFileBar {song} {onReplace} />
+    {:else if openPanel === "about"}
+      <AboutPanel />
     {/if}
   </div>
 
