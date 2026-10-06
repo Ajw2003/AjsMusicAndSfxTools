@@ -14,7 +14,7 @@ projects and download a WAV. Checked by a headless-browser run (21/21 checks, de
 | M1: Playable keyboard | 10% | Mostly built (latency #15 not measured; owner test pending) | #6 |
 | M2: Instruments | 15% | Chiptune only (#25); no samples | #16 |
 | M3: Customising sounds and keys | 10% | Not started | #28 |
-| M4: Themes and accessibility | 10% | Usability pass #84 built (reading settings, axe scan); themes, modes not started | #34 |
+| M4: Themes and accessibility | 10% | Usability pass #84 built (reading settings, axe scan), Reduce motion (#38, not merged); themes, modes not started | #34 |
 | M5: Record and loop | 10% | Mostly built (loop mode, undo, autosave, metronome, quantize) | #42 |
 | M6: Save and export | 10% | Project files, WAV and MIDI (#55, not merged) built; MP3/OGG, options not | #51 |
 | M7: Piano roll and step sequencer | 10% | Read-only loop view only | #57 |
@@ -112,12 +112,12 @@ Plan: `docs/plans/arranger-timeline.md`. Handoff detail: `docs/5-today/Today.md`
 
 Issues picked because they needed no owner decision first.
 
-- **Fast key presses dropped notes (#98, half of the owner's #95):** Tone's PolySynth allowed 32 voices,
-  release tails included, and threw away new notes past that; 300 fast presses in a headless browser gave
-  34 `Max polyphony exceeded. Note dropped.` warnings. Now 96 voices per track, at most 10 notes held by hand
-  (one more lets go of the oldest), and a pitch already held is replaced rather than stacked
-  (`src/lib/audio/engine.ts`). Checked: the same spam gives 0 dropped notes, three runs; a browser check now
-  fails on any dropped note. Not checked: heard by a person.
+- **Fast key presses dropped notes (#98, half of the owner's #95):** Tone's PolySynth dropped notes past its
+  voice limit and only took back finished voices once a second, so 300 presses in one burst dropped 204.
+  Polyphonic tracks now use our own pool of 32 voices that takes over the oldest note instead (see Decisions,
+  2026-10-06). At most 10 notes are held by hand. Checked: the same burst drops 0 (browser check, two full
+  runs "ALL PASS"), and song playback and WAV timing checks still pass through the pool. Not checked: heard by
+  a person.
 - **Layering warning (#99, other half of #95):** recording into a clip that already has notes shows "Adding to
   N notes already there. Undo removes this take." on the recording bar. Screenshots looked at, desktop and
   390 px phone. Whether to add a Replace recording mode is an open question on #99.
@@ -127,6 +127,10 @@ Issues picked because they needed no owner decision first.
   The message says what is left out. Checked: 8 unit tests that parse the file back; browser check downloads
   it and finds 3 note-ons for 3 notes. Not checked: opened in MuseScore (the issue's done-when), as there is
   no MuseScore here.
+- **Reduce motion (#38):** Reading has a Motion choice, "Follow my device" (default) or "Reduce motion",
+  remembered in the browser. Either way no transitions, animations or smooth scrolling run (`src/app.css`).
+  Checked: browser checks that the keys' transition is 0 s with the choice on, after a reload, and with the
+  device setting on.
 - **All checks on the branch head:** 142 unit tests; `npm run test:e2e` "ALL PASS".
 
 ## The one thing that is not what it looks like

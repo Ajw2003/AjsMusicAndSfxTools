@@ -37,6 +37,9 @@ It does **not** own which key maps to which note (input mapping), where samples 
 - Each instrument is a Tone.js source (`Sampler` for sampled instruments, `Synth`/`MonoSynth`/
   `PolySynth` for generated ones) wired into a per-instrument channel (volume, pan, effects),
   then into a master channel (limiter, master volume) and out.
+- Built so far: polyphonic chiptune tracks use a pool of 32 `Synth` voices rather than `PolySynth`, so a
+  burst of notes takes over the oldest note instead of dropping the new one (`buildVoicePool`,
+  `src/lib/audio/engine.ts`; see Decisions, 2026-10-06).
 - Live play triggers notes immediately (`triggerAttack` with no scheduled time). Playback of
   recorded songs is scheduled on `Tone.Transport`, so timing doesn't depend on the UI's
   frame rate.
