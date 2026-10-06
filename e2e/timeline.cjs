@@ -1671,22 +1671,29 @@ async function layeringWarning(browser) {
   await context.close();
 }
 
-/** Owner report #95 / #98: fast key presses dropped notes and glitched. */
+/**
+ * Owner report #95 / #98: fast key presses dropped notes and glitched.
+ * 300 presses in one burst need more voices than a track has; Tone's
+ * PolySynth dropped 204 of them ("Max polyphony exceeded"), the voice
+ * pool takes over the oldest note instead.
+ */
 async function keySpam(browser) {
   const { context, page } = await start(browser, { width: 1280, height: 800 });
   let dropped = 0;
   page.on("console", (m) => {
     if (/polyphony exceeded/i.test(m.text())) dropped++;
   });
-  const keys = ["a", "s", "d", "f", "g", "h", "j", "w", "e"];
-  for (let i = 0; i < 300; i++) {
-    await page.keyboard.down(keys[i % keys.length]);
-    if (i % 2) await page.keyboard.up(keys[(i - 1) % keys.length]);
-  }
-  for (const k of keys) await page.keyboard.up(k);
+  await page.evaluate(() => {
+    const keys = ["A", "S", "D", "F", "G", "H", "J", "W", "E"];
+    for (let i = 0; i < 300; i++) {
+      const code = `Key${keys[i % keys.length]}`;
+      window.dispatchEvent(new KeyboardEvent("keydown", { code }));
+      window.dispatchEvent(new KeyboardEvent("keyup", { code }));
+    }
+  });
   await page.waitForTimeout(300);
   check(
-    "300 fast key presses drop no notes",
+    "a burst of 300 key presses drops no notes",
     dropped === 0,
     `${dropped} dropped`,
   );

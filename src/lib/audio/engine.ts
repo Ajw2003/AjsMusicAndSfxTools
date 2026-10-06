@@ -16,8 +16,8 @@ import {
 /** Ticks per quarter note used for all transport scheduling (bpm-independent). */
 const PPQ = 192;
 const TAIL_SECONDS = 1;
-/** Voices one polyphonic track may sound at once, release tails included. */
-const MAX_POLYPHONY = 96;
+/** Notes one polyphonic track can sound at once, release tails included. */
+const MAX_VOICES = 32;
 /** Notes held by hand at once; one more lets go of the oldest (#98). */
 const MAX_HELD_NOTES = 10;
 
@@ -26,7 +26,7 @@ function withGain(velocity: number, gainDb: number): number {
   return Math.min(1, Math.max(0, velocity * Math.pow(10, gainDb / 20)));
 }
 
-/** Notes of every clip on a track that start in [from, to), with clip gain applied. */
+/** Notes of every clip on a track that start in [from, to), with clip gain applied, by start. */
 function scheduledNotes(track: Track, from: number, to: number): Note[] {
   const out: Note[] = [];
   for (const clip of track.clips) {
@@ -36,7 +36,8 @@ function scheduledNotes(track: Track, from: number, to: number): Note[] {
       }
     }
   }
-  return out;
+  // In time order, so the voice pool hands out voices as the notes come.
+  return out.sort((a, b) => a.startBeat - b.startBeat);
 }
 
 const toHz = (midi: number): number =>
@@ -137,6 +138,105 @@ function buildNoiseVoice(preset: ChiptunePreset): Voice {
   };
 }
 
+interface PoolVoice {
+  synth: Tone.Synth;
+  /** Pitch held by hand on this voice, or null. */
+  heldMidi: number | null;
+  /** Audio time when its last note has fully died away. */
+  freeAt: number;
+  /** Audio time its last note started, to find the oldest. */
+  startedAt: number;
+}
+
+/**
+ * A fixed set of mono synths shared by one track's notes. Tone's PolySynth
+ * only takes back finished voices on a once-a-second timer, so a fast burst
+ * of notes ran out of voices and the new notes were dropped (#98). Here a
+ * voice is free again the moment its release ends, and when every voice is
+ * busy the oldest note is taken over, so a played note is never dropped.
+ */
+function buildVoicePool(
+  options: Partial<Tone.SynthOptions>,
+  preset: ChiptunePreset,
+  output: Tone.Volume,
+): Voice {
+  const voices: PoolVoice[] = [];
+  // Small margin so a reused voice has finished its release curve.
+  const releaseSeconds = preset.envelope.release * 1.5 + 0.01;
+
+  function take(time: number): PoolVoice {
+    const idle = voices.find((v) => v.heldMidi === null && v.freeAt <= time);
+    if (idle) return idle;
+    if (voices.length < MAX_VOICES) {
+      const v: PoolVoice = {
+        synth: new Tone.Synth(options).connect(output),
+        heldMidi: null,
+        freeAt: 0,
+        startedAt: 0,
+      };
+      voices.push(v);
+      return v;
+    }
+    // All busy: prefer a fading note over a held one, then the oldest.
+    const byAge = [...voices].sort(
+      (a, b) =>
+        Number(a.heldMidi !== null) - Number(b.heldMidi !== null) ||
+        a.startedAt - b.startedAt,
+    );
+    return byAge[0];
+  }
+
+  const heldVoices = () => voices.filter((v) => v.heldMidi !== null);
+
+  function releaseVoice(v: PoolVoice, time: number): void {
+    v.heldMidi = null;
+    v.freeAt = time + releaseSeconds;
+    v.synth.triggerRelease(time);
+  }
+
+  return {
+    output,
+    attack(midi, velocity, time = Tone.immediate()) {
+      // A note already held (a chord pad and a key sharing a pitch)
+      // replaces its earlier copy rather than stacking a second one.
+      const same = voices.find((v) => v.heldMidi === midi);
+      if (same) releaseVoice(same, time);
+      const held = heldVoices();
+      if (held.length >= MAX_HELD_NOTES) {
+        const oldest = held.reduce((a, b) =>
+          a.startedAt <= b.startedAt ? a : b,
+        );
+        releaseVoice(oldest, time);
+      }
+      const v = take(time);
+      v.heldMidi = midi;
+      v.startedAt = time;
+      v.freeAt = Infinity;
+      v.synth.triggerAttack(toHz(midi), time, velocity);
+    },
+    release(midi, time = Tone.immediate()) {
+      const v = voices.find((x) => x.heldMidi === midi);
+      if (v) releaseVoice(v, time);
+    },
+    play(midi, seconds, velocity, time) {
+      const v = take(time);
+      v.heldMidi = null;
+      v.startedAt = time;
+      v.freeAt = time + seconds + releaseSeconds;
+      v.synth.triggerAttackRelease(toHz(midi), seconds, time, velocity);
+    },
+    releaseAll(time = Tone.immediate()) {
+      for (const v of voices) {
+        if (v.heldMidi !== null || v.freeAt > time) releaseVoice(v, time);
+      }
+    },
+    dispose() {
+      for (const v of voices) v.synth.dispose();
+      output.dispose();
+    },
+  };
+}
+
 function buildPitchedVoice(preset: ChiptunePreset): Voice {
   const output = new Tone.Volume(0);
   const wave = preset.wave;
@@ -149,49 +249,7 @@ function buildPitchedVoice(preset: ChiptunePreset): Voice {
     envelope: preset.envelope,
   } as Partial<Tone.SynthOptions>;
 
-  if (preset.isPolyphonic) {
-    const synth = new Tone.PolySynth({
-      voice: Tone.Synth,
-      options,
-      // Room for release tails on top of held notes, so fast playing never
-      // hits the limit (Tone drops the new note when it does).
-      maxPolyphony: MAX_POLYPHONY,
-    }).connect(output);
-    // Live-held notes, oldest first (a Set keeps insertion order).
-    const held = new Set<number>();
-    return {
-      output,
-      attack(midi, velocity, time) {
-        // A note already held (a chord pad and a key sharing a pitch)
-        // replaces its earlier copy rather than stacking a second one.
-        if (held.has(midi)) {
-          synth.triggerRelease(toHz(midi), time);
-          held.delete(midi);
-        }
-        if (held.size >= MAX_HELD_NOTES) {
-          const oldest = held.values().next().value as number;
-          synth.triggerRelease(toHz(oldest), time);
-          held.delete(oldest);
-        }
-        held.add(midi);
-        synth.triggerAttack(toHz(midi), time, velocity);
-      },
-      release(midi, time) {
-        if (!held.delete(midi)) return;
-        synth.triggerRelease(toHz(midi), time);
-      },
-      play: (midi, seconds, velocity, time) =>
-        synth.triggerAttackRelease(toHz(midi), seconds, time, velocity),
-      releaseAll(time) {
-        held.clear();
-        synth.releaseAll(time);
-      },
-      dispose() {
-        synth.dispose();
-        output.dispose();
-      },
-    };
-  }
+  if (preset.isPolyphonic) return buildVoicePool(options, preset, output);
 
   const synth = new Tone.Synth(options).connect(output);
   let heldMidi: number | null = null;
