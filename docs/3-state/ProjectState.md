@@ -118,6 +118,11 @@ Issues picked because they needed no owner decision first.
   2026-10-06). At most 10 notes are held by hand. Checked: the same burst drops 0 (browser check, two full
   runs "ALL PASS"), and song playback and WAV timing checks still pass through the pool. Not checked: heard by
   a person.
+- **Taken-over voice restarted at its own start time (#102):** when presses beat the audio clock, the pool could
+  take over a voice that started that same instant and Tone threw "Start time must be strictly greater than
+  previous start time" (seen in CI). A taken-over voice now starts 1 ms after its last start
+  (`startTime` in `src/lib/audio/engine.ts`). Checked: a browser check that freezes the clock and sends 40
+  presses failed before the fix and passes after (two full runs "ALL PASS").
 - **Layering warning (#99, other half of #95):** recording into a clip that already has notes shows "Adding to
   N notes already there. Undo removes this take." on the recording bar. Screenshots looked at, desktop and
   390 px phone. Whether to add a Replace recording mode is an open question on #99.
