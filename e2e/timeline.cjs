@@ -1355,6 +1355,31 @@ async function focusAids(browser) {
     check(`${where}: bar is gone after stopping`, !(await bar.count()));
     await page.getByRole("button", { name: "Back to start" }).click();
 
+    // Recording into a clip that already has notes says so in words (#99).
+    await openSong(
+      page,
+      songFile(80, [
+        clip("A", 0, 16, 16, [note("n1", 60, 0), note("n2", 64, 1)]),
+      ]),
+      "focus.ajsong.json",
+    );
+    await page.locator("[data-clip-id]").first().click();
+    await page.getByRole("button", { name: "Record", exact: true }).click();
+    await bar.waitFor();
+    const layerText = (await bar.textContent()).replace(/\s+/g, " ").trim();
+    check(
+      `${where}: bar says the take adds to notes already there`,
+      layerText === "Adding to 2 notes already in A — press Record to stop",
+      layerText,
+    );
+    await page.getByRole("button", { name: "Record", exact: true }).click();
+    await page.getByRole("button", { name: "Back to start" }).click();
+    await openSong(
+      page,
+      songFile(80, [clip("A", 0, 16, 16, [])]),
+      "focus.ajsong.json",
+    );
+
     // Deleting a clip, with Undo in the message.
     const clips = page.locator("[data-clip-id]");
     const message = page.locator(".deleted");

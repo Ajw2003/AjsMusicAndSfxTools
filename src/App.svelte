@@ -80,6 +80,9 @@
   /** The song right after this take's last stored bar; later bars of the
       same take are folded into that undo step while nothing else changed. */
   let takeSong: Song | null = null;
+  /** Every note in the song when Record was pressed, so the bar can say a
+      take is layering onto notes already there (not this take's own). */
+  let notesBeforeTake = new Set<string>();
   /** The copied clip (a deep copy), pasted with a fresh id. */
   let clipboard = $state<Clip | null>(null);
   let snapGrid = $state(1);
@@ -187,6 +190,14 @@
     }
     const trackId = target.trackId;
     return song.tracks.find((t) => t.id === trackId)?.name ?? selected.name;
+  });
+  /** Notes already in the clip being recorded into, from before this take. */
+  const layeredCount = $derived.by(() => {
+    const target = recordTargetNow;
+    if (!isRecording || target?.kind !== "clip") return 0;
+    const content = findClip(song, target.clipId)?.clip.content;
+    if (content?.kind !== "notes") return 0;
+    return content.notes.filter((n) => notesBeforeTake.has(n.id)).length;
   });
   const isDrums = $derived(selected.sound === "noise");
 
@@ -587,6 +598,13 @@
       beat = found.clip.startBeat;
     }
     takeSong = null;
+    notesBeforeTake = new Set(
+      history.song.tracks.flatMap((t) =>
+        t.clips.flatMap((c) =>
+          c.content.kind === "notes" ? c.content.notes.map((n) => n.id) : [],
+        ),
+      ),
+    );
     aimRecording(target);
     engine.setFreeRun(true);
     isRecording = true;
@@ -834,7 +852,13 @@
     {#if recordingInto !== null}
       <div class="rec-bar" role="status">
         <span class="rec-dot" aria-hidden="true"></span>
-        Recording into {recordingInto} — press Record to stop
+        {#if layeredCount > 0}
+          Adding to {layeredCount}
+          {layeredCount === 1 ? "note" : "notes"} already in {recordingInto} — press
+          Record to stop
+        {:else}
+          Recording into {recordingInto} — press Record to stop
+        {/if}
       </div>
     {/if}
   {/snippet}
