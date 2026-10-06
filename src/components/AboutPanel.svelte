@@ -47,6 +47,24 @@
           </tbody>
         </table>
       </div>
+      <!-- Phones: one card per credit, so no word is squeezed and split. -->
+      <ul class="cards">
+        {#each s.rows as row, i (i)}
+          <li>
+            <dl>
+              {#each row as cell, j (j)}
+                <div>
+                  <dt>{s.columns[j]}</dt>
+                  <dd>
+                    {#if isLink(cell)}<a href={cell}>{cell}</a
+                      >{:else}{cell}{/if}
+                  </dd>
+                </div>
+              {/each}
+            </dl>
+          </li>
+        {/each}
+      </ul>
     {/if}
   {/each}
 </section>
@@ -69,12 +87,46 @@
   }
   th,
   td {
+    /* Words are never split; only long links may wrap anywhere. */
+    overflow-wrap: normal;
     text-align: left;
     vertical-align: top;
     padding: 0.25rem 0.75rem;
     border: 1px solid var(--color-border);
   }
-  td a {
+  td a,
+  dd a {
     overflow-wrap: anywhere;
+  }
+  .cards {
+    display: none;
+    list-style: none;
+    margin: 0;
+    padding: 0;
+  }
+  .cards li {
+    margin: 0.5rem 0;
+    padding: 0.5rem 0.75rem;
+    border: 1px solid var(--color-border);
+  }
+  dl {
+    margin: 0;
+  }
+  dl div {
+    margin: 0.25rem 0;
+  }
+  dt {
+    font-weight: 700;
+  }
+  dd {
+    margin: 0;
+  }
+  @media (max-width: 600px) {
+    .scroll {
+      display: none;
+    }
+    .cards {
+      display: block;
+    }
   }
 </style>
