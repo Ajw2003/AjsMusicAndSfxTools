@@ -118,6 +118,11 @@ Issues picked because they needed no owner decision first.
   2026-10-06). At most 10 notes are held by hand. Checked: the same burst drops 0 (browser check, two full
   runs "ALL PASS"), and song playback and WAV timing checks still pass through the pool. Not checked: heard by
   a person.
+- **Taken-over voice restarted at its own start time (#102):** when presses beat the audio clock, the pool could
+  take over a voice that started that same instant and Tone threw "Start time must be strictly greater than
+  previous start time" (seen in CI). A taken-over voice now starts 1 ms after its last start
+  (`startTime` in `src/lib/audio/engine.ts`). Checked: a browser check that freezes the clock and sends 40
+  presses failed before the fix and passes after (two full runs "ALL PASS").
 - **Layering warning (#99, other half of #95):** recording into a clip that already has notes shows "Adding to
   N notes already there. Undo removes this take." on the recording bar. Screenshots looked at, desktop and
   390 px phone. Whether to add a Replace recording mode is an open question on #99.
@@ -136,7 +141,7 @@ Issues picked because they needed no owner decision first.
   Phones show one card per credit. Checked: every font credit appears; no sideways scroll at 360 px; axe 0 issues
   desktop and phone; screenshots looked at (an earlier version split words letter by letter, fixed).
 - **Research only, waiting on the owner:** MP3/OGG encoder pick (#54, `docs/plans/mp3-ogg-export.md`) and sample
-  pack candidates (#17, `docs/plans/sample-sources.md`); questions posted on both issues.
+  pack candidates (#17, `docs/plans/sample-sources.md`); #17 since answered and the packs chosen.
 - **All checks on the branch head:** 147 unit tests; `npm run test:e2e` "ALL PASS".
 
 ## The one thing that is not what it looks like
@@ -147,7 +152,7 @@ person yet: nobody has listened to it, and the M1 latency number doesn't exist. 
 
 ## Cross-cutting issues that belong to no milestone
 
-- **Sample licences.** Nothing about sample sources has been verified. Until #17 is done, any
-  sample pack named in the docs is a candidate, not a choice.
+- **Sample packs.** Chosen and licences read (#17, `docs/plans/sample-sources.md`, credits in `CREDITS.md`).
+  No sample files are in the app yet; each instrument adds its own (#20 to #24).
 - **Node.js on the owner's PC.** Not recorded whether it's installed. Building from source needs it.
 - **Key-to-sound latency** has not been measured anywhere (#15).

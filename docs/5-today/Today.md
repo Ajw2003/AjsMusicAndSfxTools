@@ -12,7 +12,7 @@ Waiting on the owner:
 
 - #99: add a Replace recording mode? (options on the issue)
 - #54: OK to add `mediabunny` + `@mediabunny/mp3-encoder` for MP3/OGG? (`docs/plans/mp3-ogg-export.md`)
-- #17: CC BY / CC BY-SA samples OK, size budget? (`docs/plans/sample-sources.md`)
+- ~~#17~~ answered 2026-10-06 (CC BY yes, CC BY-SA for drums yes, under 2 MB); packs chosen, see `CREDITS.md`.
 - #55 done-when: open the MIDI file in MuseScore (no MuseScore here).
 - Try #95's fix by ear: spam keys, then record.
 
@@ -44,7 +44,7 @@ Waiting on the owner:
 ## Not done / known gaps
 
 - Nobody has measured key-to-sound latency (#15); needs the owner's PC.
-- Sample-pack licences (#17) not researched; only chiptune sounds exist.
+- Sample packs chosen (#17) but no sample files added yet; only chiptune sounds exist.
 - Known rough edge: Pause during count-in can still play the pre-scheduled clicks (not re-checked).
 - Touch dragging is checked with emulated touch only; no physical phone has tried it.
 
