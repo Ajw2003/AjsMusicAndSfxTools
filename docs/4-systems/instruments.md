@@ -5,9 +5,12 @@ seven generated sounds (square, pulse 25%, pulse 12.5%, saw, triangle bass, puls
 sampled ones (acoustic guitar, electric guitar, electric bass, upright bass; #104). Noise drums pick kick/snare/hat
 by pitch (`src/lib/audio/drums.ts:4`: below C4 kick, C4–B4 snare, C5 and up hat). Piano and sampled drums not yet.
 
-Sampled sounds: a preset with `wave.kind: "sampled"` names a folder under `public/samples/` and the notes recorded
-there (`As1` means A#1). The engine's `buildSampledVoice` (`src/lib/audio/engine.ts`) wraps a Tone.js `Sampler`,
-which pitches the notes in between from the nearest recording. The files download when a track first uses the
+Sampled sounds: a preset with `wave.kind: "sampled"` names a folder under `public/samples/`, a note range
+(`lowMidi`–`highMidi`, one file per semitone, `As1.mp3` for A#1, see `sampleFileName`) and a `gainDb` that brings the
+files to the -3 dBFS median peak the old set had. The engine's `buildSampledVoice` (`src/lib/audio/engine.ts`) wraps
+a Tone.js `Sampler`, which stretches the nearest file only for notes outside the range. Releases are long
+(1.5–2.5 s), so a note rings on after the key lifts, as a string does (#109). Sources and the measurements that
+picked them: Decisions, 2026-10-13 "Plucked guitar and bass recordings". The files download when a track first uses the
 sound; until then notes are skipped and a "Loading … recordings" notice shows; a failed download shows a
 "Couldn't load" notice and that track stays silent (no generated fallback yet, see #19). WAV export waits for
 the recordings before rendering.

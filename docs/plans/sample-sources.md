@@ -1,5 +1,9 @@
 # Plan: free sample packs for piano, guitars, bass and drums (#17) — candidates, awaiting the owner
 
+**Update 2026-10-13, later:** guitars and basses now come from gleitz/midi-js-soundfonts (FluidR3_GM, CC BY 3.0;
+Musyng Kite electric guitar, CC BY-SA 3.0), after the owner found the tonejs-instruments ones piano-like (#109).
+See Decisions, 2026-10-13. The paragraph below is the first attempt.
+
 **Update 2026-10-13:** the owner asked for guitars and basses to be sourced (#103). tonejs-instruments was used
 for acoustic guitar, electric guitar, electric bass and upright bass (#104), CC BY 3.0, credited in `CREDITS.md`.
 Its `LICENSE.md` and `sample-source-info.txt` were read in the downloaded copy. The upstream pages (Iowa,

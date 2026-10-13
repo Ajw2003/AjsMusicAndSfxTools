@@ -227,4 +227,22 @@ shortcut until the picker (#18).
 **Why.** Ready-made per-note files for Tone.js's Sampler, one licence line to credit, and within the suggested
 2 MB per instrument. Upstream licences (Iowa, Karoryfer, VSCO 2) could not be read from this sandbox.
 
+**Status.** Replaced the same day by "Plucked guitar and bass recordings" below.
+
+## 2026-10-13 — Plucked guitar and bass recordings (replaces tonejs-instruments)
+
+**Context.** The owner said the guitars and basses had no pluck or string sound and came across like piano keys
+(#108). Measured on the shipped files: the upright bass was bowed (median 2.8 s to full volume); the electric
+guitar and bass had little high-frequency energy in the first 30 ms (median 0.08 and 0.016, against 0.13 for the
+acoustic guitar); and notes were cut 0.4–1 s after the key lifted, like a piano damper.
+
+**Decision.** Note-by-note renders from gleitz/midi-js-soundfonts, every semitone (E2–E6 guitars, E1–G4 basses),
+0.6–1.1 MB per instrument: FluidR3_GM steel acoustic guitar, picked electric bass and plucked upright bass
+(CC BY 3.0); Musyng Kite clean electric guitar (CC BY-SA 3.0, chosen by the owner over FluidR3's weaker pick).
+Release times 1.5–2.5 s so notes ring on. A per-instrument gain restores the old -3 dBFS level.
+
+**Why.** Highest measured attack brightness of the candidates checked: medians 0.41 acoustic, 0.34 electric,
+0.069 electric bass; the upright bass reaches full volume in 40 ms. One file per semitone means nothing is
+stretched far. Only the owner's ear can confirm it sounds plucked.
+
 **Status.** Standing.

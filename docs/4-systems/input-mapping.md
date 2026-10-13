@@ -11,6 +11,14 @@ starts one above the main row and snaps back to that when the main octave change
 track. Each row tracks its own held pointers, so one thumb per row works. The same note held on both rows at once
 is released by whichever lets go first.
 
+**Touch rules, 2026-10-13 (#110):** `src/lib/input/touch-rules.ts` decides, per finger, when to play, keep, change or
+let go: a press plays the key under it; a slide moves to another key only after 10px of travel (`SLIDE_PX`), so a
+resting or rolling finger never hits the neighbour; a gap, key edge or anything within 24px of the row (`LEAVE_PX`)
+keeps the note; further out lets go, and coming back plays again; each row only plays its own keys; only the main
+mouse button plays. `Keyboard.svelte` follows fingers on the window, not just the row, so it sees them leave and
+return. Browser checks: `touchKeys` in `e2e/timeline.cjs`. The 10px and 24px values are first guesses to tune on the
+owner's phone.
+
 **Chord pads, 2026-10-04 (#78):** number keys 1–8 (`Digit1`–`Digit8`, unused by both layouts) play saved chord pads,
 handled in `src/App.svelte` (`padForKey`, `onPadDown`/`onPadUp`) before the clip shortcuts; a pad sends each of
 its pitches through the same `onNoteOn`/`onNoteOff` as the keyboard, so it records like notes. Keys typed into a

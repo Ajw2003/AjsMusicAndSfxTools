@@ -2,7 +2,16 @@
 
 **Read this first, then [ProjectState](../3-state/ProjectState.md).**
 
-## 2026-10-13 (branch `ccr-e5173579-iejnn8`, PR #107 open)
+## 2026-10-13, second pass (#108, branch `ccr-e5173579-iejnn8`)
+
+Owner feedback on PR #107 (merged): guitars and basses sounded like piano keys, and touch play dropped or mis-hit
+notes; the second row is good. Built: plucked guitar and bass recordings that ring on (#109) and touch accept and
+reject rules (#110). Checked: lint, type check, 156 unit tests, `npm run test:e2e` ALL PASS twice; the new touch
+checks fail 3 times on the old `main` build. Not reproduced here: the mid-drag drop the owner saw (a simulated
+finger never dropped on the old build either). Waiting on the owner: listen to the four sounds, and try dragging
+on the phone.
+
+## 2026-10-13 (branch `ccr-e5173579-iejnn8`, PR #107 merged)
 
 Built for #103: sampled acoustic guitar, electric guitar, electric bass and upright bass (#104); pulse 12.5%, saw
 lead and pulse bass chiptune sounds (#105); a switchable second keyboard row for two-thumb play (#106). Checked:
