@@ -18,6 +18,7 @@
   import { engine } from "./lib/audio/engine";
   import { loadUi, saveUi } from "./lib/ui-storage";
   import { isTyping } from "./lib/input/is-typing";
+  import { clampOctave } from "./lib/input/piano-keys";
   import { TakeRecorder } from "./lib/song/recorder";
   import {
     SongHistory,
@@ -68,6 +69,8 @@
   let countNumber = $state<number | null>(null);
   /** What was just deleted, so Undo can sit right where the mistake was. */
   let deleted = $state<string | null>(null);
+  /** Sampled sound loading or failed message, or null when there is none. */
+  let sampleStatus = $state<string | null>(null);
   let undoButton = $state<HTMLButtonElement | undefined>();
   let isRecording = $state(false);
   let beat = $state(0);
@@ -113,6 +116,7 @@
   ];
   const PANEL_KEY = "ajs-music.ui.panel";
   const KEYBOARD_KEY = "ajs-music.ui.keyboard-hidden";
+  const SECOND_ROW_KEY = "ajs-music.ui.keyboard-second-row";
   const TIPS_KEY = "ajs-music.ui.tips-hidden";
   const HINT_CHORDS_KEY = "ajs-music.ui.hint-chords-done";
   const HINT_TIMELINE_KEY = "ajs-music.ui.hint-timeline-done";
@@ -132,6 +136,7 @@
   let isChordHintDone = $state(loadUi(HINT_CHORDS_KEY) === "true");
   let isTimelineHintDone = $state(loadUi(HINT_TIMELINE_KEY) === "true");
   let isKeyboardHidden = $state(loadUi(KEYBOARD_KEY) === "true");
+  let hasSecondRow = $state(loadUi(SECOND_ROW_KEY) === "true");
 
   /**
    * Open a panel (or close all with null). `reveal` scrolls it into view;
@@ -198,6 +203,9 @@
 
   // Kick (below C4) must be reachable on drum tracks, so they start at C3.
   let octave = $derived(isDrums ? 3 : 4);
+  // The second row starts an octave above the main one and can be moved on
+  // its own; moving the main row brings it back to one octave above.
+  let upperOctave = $derived(clampOctave(octave + 1));
   $effect(() => {
     if (isReady) engine.setMetronome(metronomeOn);
   });
@@ -653,6 +661,7 @@
   }
 
   onMount(() => {
+    engine.onSampleStatus = (message) => (sampleStatus = message);
     frame = requestAnimationFrame(tick);
     const mq = window.matchMedia("(max-width: 600px)");
     const onMq = () => (isPhone = mq.matches);
@@ -936,6 +945,17 @@
     </div>
   {/if}
 
+  {#if sampleStatus !== null}
+    <div class="deleted" role="status">
+      <span>{sampleStatus}</span>
+      <button
+        type="button"
+        aria-label="Dismiss"
+        onclick={() => engine.dismissSampleStatus()}>×</button
+      >
+    </div>
+  {/if}
+
   {#if deleted !== null}
     <div class="deleted" role="status">
       <span>Deleted {deleted}.</span>
@@ -1066,6 +1086,20 @@
     >
       {isKeyboardHidden ? "Show keyboard" : "Hide keyboard"}
     </button>
+    {#if !isKeyboardHidden}
+      <button
+        type="button"
+        class="keyboard-toggle"
+        aria-pressed={hasSecondRow}
+        onclick={() => {
+          hasSecondRow = !hasSecondRow;
+          saveUi(SECOND_ROW_KEY, String(hasSecondRow));
+        }}
+      >
+        <!-- Short, so the keyboard's controls stay on one line on a phone. -->
+        <span aria-hidden="true">{hasSecondRow ? "✓ " : ""}</span>2 rows
+      </button>
+    {/if}
   {/snippet}
   <div class="dock">
     <!-- On a phone the bar sits by the keys, so it never covers the page. -->
@@ -1083,6 +1117,18 @@
       />
     {/if}
     <div id="keyboard" hidden={isKeyboardHidden}>
+      {#if hasSecondRow}
+        <Keyboard
+          {onNoteOn}
+          {onNoteOff}
+          colour={preset.colour}
+          drums={isDrums}
+          octaves={isPhone && !isDrums ? 1 : 2}
+          bind:octave={upperOctave}
+          label="Second keyboard row"
+          hasComputerKeys={false}
+        />
+      {/if}
       <Keyboard
         {onNoteOn}
         {onNoteOff}
