@@ -1,7 +1,16 @@
 # Instruments
 
-**Built?** Chiptune only, 2026-10-03: four presets in `src/lib/audio/chiptune.ts`; noise drums pick kick/snare/hat
-by pitch (`src/lib/audio/drums.ts:4`: below C4 kick, C4–B4 snare, C5 and up hat). No sampled instruments yet.
+**Built?** Partly, 2026-10-13. One catalogue, `CHIPTUNE_PRESETS` in `src/lib/audio/chiptune.ts`, holds
+seven generated sounds (square, pulse 25%, pulse 12.5%, saw, triangle bass, pulse bass, noise drums) and four
+sampled ones (acoustic guitar, electric guitar, electric bass, upright bass; #104). Noise drums pick kick/snare/hat
+by pitch (`src/lib/audio/drums.ts:4`: below C4 kick, C4–B4 snare, C5 and up hat). Piano and sampled drums not yet.
+
+Sampled sounds: a preset with `wave.kind: "sampled"` names a folder under `public/samples/` and the notes recorded
+there (`As1` means A#1). The engine's `buildSampledVoice` (`src/lib/audio/engine.ts`) wraps a Tone.js `Sampler`,
+which pitches the notes in between from the nearest recording. The files download when a track first uses the
+sound; until then notes are skipped and a "Loading … recordings" notice shows; a failed download shows a
+"Couldn't load" notice and that track stays silent (no generated fallback yet, see #19). WAV export waits for
+the recordings before rendering.
 
 ## What it owns
 

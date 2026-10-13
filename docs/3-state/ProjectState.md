@@ -12,7 +12,7 @@ projects and download a WAV. Checked by a headless-browser run (21/21 checks, de
 |---|---|---|---|
 | M0: Foundation | 5% | Built; CI green; owner's local run not yet checked | #1 |
 | M1: Playable keyboard | 10% | Mostly built (latency #15 not measured; owner test pending) | #6 |
-| M2: Instruments | 15% | Chiptune only (#25); no samples | #16 |
+| M2: Instruments | 15% | Chiptune (#25, three more sounds #105); sampled guitars and basses (#104, not merged); piano, drums not | #16 |
 | M3: Customising sounds and keys | 10% | Not started | #28 |
 | M4: Themes and accessibility | 10% | Usability pass #84 built (reading settings, axe scan), Reduce motion (#38, not merged); themes, modes not started | #34 |
 | M5: Record and loop | 10% | Mostly built (loop mode, undo, autosave, metronome, quantize) | #42 |

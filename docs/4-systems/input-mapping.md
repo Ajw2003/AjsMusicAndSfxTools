@@ -4,6 +4,13 @@
 handling in `src/components/Keyboard.svelte`. Rebinding (M3) not built. On phones (≤600px) one octave
 is shown and the layout picker is hidden.
 
+**Second row, 2026-10-13 (#106):** The "2 rows" toggle (next to Hide keyboard, remembered under
+`ajs-music.ui.keyboard-second-row`) draws a second `Keyboard` above the main one in `src/App.svelte`, with
+`hasComputerKeys={false}` so computer keys still play only the main row, and its own octave (`upperOctave`), which
+starts one above the main row and snaps back to that when the main octave changes. Both rows play the selected
+track. Each row tracks its own held pointers, so one thumb per row works. The same note held on both rows at once
+is released by whichever lets go first.
+
 **Chord pads, 2026-10-04 (#78):** number keys 1–8 (`Digit1`–`Digit8`, unused by both layouts) play saved chord pads,
 handled in `src/App.svelte` (`padForKey`, `onPadDown`/`onPadUp`) before the clip shortcuts; a pad sends each of
 its pitches through the same `onNoteOn`/`onNoteOff` as the keyboard, so it records like notes. Keys typed into a

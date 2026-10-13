@@ -213,3 +213,18 @@ the web app later if needed), Python desktop (harder to make look good and to sh
 React (more boilerplate) and plain TypeScript (gets messy by the piano roll).
 
 **Status.** Standing.
+
+## 2026-10-13 — Guitar and bass recordings from tonejs-instruments
+
+**Context.** The owner asked for real acoustic and electric guitar and more bass sounds (#103). The #17 questions
+(is CC BY fine, size budget) had no written answer; the request to source them was taken as the go-ahead for CC BY.
+
+**Decision.** Acoustic guitar, electric guitar, electric bass and upright bass use tonejs-instruments samples
+(CC BY 3.0), unchanged mp3 files, a subset of notes per instrument (1.6–2.0 MB each), served from
+`public/samples/`. They sit in the existing sound catalogue rather than a new instrument catalogue, marked as a
+shortcut until the picker (#18).
+
+**Why.** Ready-made per-note files for Tone.js's Sampler, one licence line to credit, and within the suggested
+2 MB per instrument. Upstream licences (Iowa, Karoryfer, VSCO 2) could not be read from this sandbox.
+
+**Status.** Standing.
