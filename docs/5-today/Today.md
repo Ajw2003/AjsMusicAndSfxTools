@@ -2,7 +2,7 @@
 
 **Read this first, then [ProjectState](../3-state/ProjectState.md).**
 
-## 2026-10-13 (branch `ccr-e5173579-iejnn8`, pushed, no PR yet)
+## 2026-10-13 (branch `ccr-e5173579-iejnn8`, PR #107 open)
 
 Built for #103: sampled acoustic guitar, electric guitar, electric bass and upright bass (#104); pulse 12.5%, saw
 lead and pulse bass chiptune sounds (#105); a switchable second keyboard row for two-thumb play (#106). Checked:
