@@ -1,5 +1,11 @@
 # Plan: free sample packs for piano, guitars, bass and drums (#17) — candidates, awaiting the owner
 
+**Update 2026-10-13:** the owner asked for guitars and basses to be sourced (#103). tonejs-instruments was used
+for acoustic guitar, electric guitar, electric bass and upright bass (#104), CC BY 3.0, credited in `CREDITS.md`.
+Its `LICENSE.md` and `sample-source-info.txt` were read in the downloaded copy. The upstream pages (Iowa,
+Karoryfer, VSCO) are still blocked from this sandbox, so the upstream licences remain unchecked first-hand.
+Piano and drums are still open below.
+
 Status: first research pass 2026-10-06. **Candidates, not choices.** Every licence must be read at its
 source page and in the downloaded files before anything ships (the issue's own rule). Rows marked
 *second-hand* were seen only in search summaries; this sandbox's network blocks some sites (e.g.

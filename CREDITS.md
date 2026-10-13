@@ -3,11 +3,16 @@
 Every third-party sound, sample pack and asset shipped with the app is listed here with its
 author, source link and licence. Code dependencies are listed in `package.json` with their own licences.
 
-No third-party samples are included yet. Sources are chosen in issue #17.
+Recorded instruments come from Nicholaus P. Brosowsky's tonejs-instruments collection, which
+releases its samples under CC BY 3.0 and lists the original recordings it edited (credited below).
+A subset of notes is shipped in `public/samples/`, unchanged from that collection.
 
-| Asset      | Used for | Author | Source | Licence |
-| ---------- | -------- | ------ | ------ | ------- |
-| (none yet) |          |        |        |         |
+| Asset           | Used for                        | Author                                                                 | Source                                           | Licence   |
+| --------------- | ------------------------------- | ---------------------------------------------------------------------- | ------------------------------------------------ | --------- |
+| Acoustic guitar | Acoustic guitar sound, 9 notes  | Nicholaus P. Brosowsky; original recordings University of Iowa EMS     | https://github.com/nbrosowsky/tonejs-instruments | CC BY 3.0 |
+| Electric guitar | Electric guitar sound, 17 notes | Nicholaus P. Brosowsky; original recordings Karoryfer Samples          | https://github.com/nbrosowsky/tonejs-instruments | CC BY 3.0 |
+| Electric bass   | Electric bass sound, 6 notes    | Nicholaus P. Brosowsky; original recordings Karoryfer Samples          | https://github.com/nbrosowsky/tonejs-instruments | CC BY 3.0 |
+| Upright bass    | Upright bass sound, 8 notes     | Nicholaus P. Brosowsky; original recordings VSCO 2 (Versilian Studios) | https://github.com/nbrosowsky/tonejs-instruments | CC BY 3.0 |
 
 ## Fonts
 

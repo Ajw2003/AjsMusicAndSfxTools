@@ -2,6 +2,14 @@
 
 **Read this first, then [ProjectState](../3-state/ProjectState.md).**
 
+## 2026-10-13 (branch `ccr-e5173579-iejnn8`, PR #107 open)
+
+Built for #103: sampled acoustic guitar, electric guitar, electric bass and upright bass (#104); pulse 12.5%, saw
+lead and pulse bass chiptune sounds (#105); a switchable second keyboard row for two-thumb play (#106). Checked:
+lint, type check, 148 unit tests, and a headless phone-size browser run of the build (two rows, two thumbs at
+once, each sampled sound plays a recording, failed download shows a message, WAV export of a guitar track is
+audible). Not yet: `npm run test:e2e`, owner listening test, upstream sample licences (blocked here).
+
 ## This session (branch `claude/cool-rubin-me4hf8`, pushed, no PR yet)
 
 Built, issues that needed no owner decision: #98 (fast key presses dropped notes; own voice pool), #99

@@ -11,7 +11,14 @@ const DRUM_PITCH: Record<DrumKind, number> = { kick: 36, snare: 38, hat: 42 };
 const PROGRAM: Record<Exclude<ChiptuneSoundId, "noise">, number> = {
   square: 80,
   pulse: 80,
+  pulse12: 80,
+  saw: 81,
   triangle: 38,
+  pulsebass: 38,
+  "guitar-acoustic": 25,
+  "guitar-electric": 27,
+  "bass-electric": 33,
+  "bass-upright": 32,
 };
 
 /** Encode a number as a MIDI variable-length quantity. */

@@ -1672,6 +1672,46 @@ async function layeringWarning(browser) {
   await context.close();
 }
 
+/** #102: notes in one instant must not restart a voice at its own start time. */
+async function sameInstantBurst(browser) {
+  const { context, page } = await start(browser, { width: 1280, height: 800 });
+  const errors = [];
+  page.on("pageerror", (e) => errors.push(e.message));
+  await page.evaluate(() => {
+    // Hold the audio clock still so every press lands on the same instant,
+    // as happens by chance when presses arrive faster than the clock ticks.
+    const desc = Object.getOwnPropertyDescriptor(
+      BaseAudioContext.prototype,
+      "currentTime",
+    );
+    const frozen = new Map();
+    Object.defineProperty(BaseAudioContext.prototype, "currentTime", {
+      configurable: true,
+      get() {
+        if (!frozen.has(this)) frozen.set(this, desc.get.call(this));
+        return frozen.get(this);
+      },
+    });
+    const keys = ["A", "S", "D", "F", "G", "H", "J", "W", "E"];
+    try {
+      for (let i = 0; i < 40; i++) {
+        const code = `Key${keys[i % keys.length]}`;
+        window.dispatchEvent(new KeyboardEvent("keydown", { code }));
+        window.dispatchEvent(new KeyboardEvent("keyup", { code }));
+      }
+    } finally {
+      Object.defineProperty(BaseAudioContext.prototype, "currentTime", desc);
+    }
+  });
+  await page.waitForTimeout(300);
+  check(
+    "40 presses in one instant restart no voice at its start time",
+    errors.length === 0,
+    errors[0] ?? "",
+  );
+  await context.close();
+}
+
 /**
  * Owner report #95 / #98: fast key presses dropped notes and glitched.
  * 300 presses in one burst need more voices than a track has; Tone's
@@ -1866,6 +1906,7 @@ async function startPreview() {
     await phoneLargeText(browser);
     await focusAids(browser);
     await keySpam(browser);
+    await sameInstantBurst(browser);
     await layeringWarning(browser);
     await midiExport(browser);
     await reducedMotion(browser);

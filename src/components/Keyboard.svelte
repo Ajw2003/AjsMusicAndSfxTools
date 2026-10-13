@@ -32,6 +32,10 @@
     octave?: number;
     /** Extra controls shown in the keyboard's top row (e.g. Hide keyboard). */
     controls?: Snippet;
+    /** Accessible name, so two keyboards on screen can be told apart. */
+    label?: string;
+    /** False for the second row: computer keys play only the main keyboard. */
+    hasComputerKeys?: boolean;
   }
   let {
     onNoteOn,
@@ -41,6 +45,8 @@
     octaves = 2,
     octave = $bindable(DEFAULT_OCTAVE),
     controls,
+    label = "Keyboard",
+    hasComputerKeys = true,
   }: Props = $props();
 
   const VELOCITY = 0.8;
@@ -125,6 +131,7 @@
   // tabindex -1 so the page doesn't get 25 tab stops, and every note has a
   // computer key bound to it (shown on the key).
   function onWindowKeydown(e: KeyboardEvent): void {
+    if (!hasComputerKeys) return;
     if (e.repeat || e.ctrlKey || e.metaKey || e.altKey || isTyping(e.target))
       return;
     if (e.code === layout.octaveDownCode) {
@@ -152,6 +159,7 @@
   }
 
   function boundLabel(midi: number): string {
+    if (!hasComputerKeys) return "";
     const code = codeForMidi(layout, baseMidi, midi);
     return code ? keyLabel(code) : "";
   }
@@ -197,38 +205,44 @@
 <section
   class="keyboard"
   class:drums
-  aria-label="Keyboard"
+  aria-label={label}
   style:--glow={colour}
   style:--black-w="calc(100% / {whiteKeys.length} * 0.62)"
 >
   <div class="controls">
     {@render controls?.()}
-    <label>
-      Computer keys
-      <select
-        value={layoutId}
-        onchange={(e) => {
-          layoutId = e.currentTarget.value as LayoutId;
-          // Give focus back so computer keys play right away.
-          e.currentTarget.blur();
-        }}
-      >
-        {#each KEY_LAYOUTS as l (l.id)}
-          <option value={l.id}>{l.name}</option>
-        {/each}
-      </select>
-    </label>
-    <div class="octave" role="group" aria-label="Octave">
+    {#if hasComputerKeys}
+      <label>
+        Computer keys
+        <select
+          value={layoutId}
+          onchange={(e) => {
+            layoutId = e.currentTarget.value as LayoutId;
+            // Give focus back so computer keys play right away.
+            e.currentTarget.blur();
+          }}
+        >
+          {#each KEY_LAYOUTS as l (l.id)}
+            <option value={l.id}>{l.name}</option>
+          {/each}
+        </select>
+      </label>
+    {/if}
+    <div class="octave" role="group" aria-label="{label} octave">
       <button
         type="button"
-        aria-label="Octave down ({keyLabel(layout.octaveDownCode)})"
+        aria-label={hasComputerKeys
+          ? `Octave down (${keyLabel(layout.octaveDownCode)})`
+          : "Octave down"}
         disabled={octave <= MIN_OCTAVE}
         onclick={() => setOctave(octave - 1)}>-</button
       >
       <output aria-live="polite">Octave {octave}</output>
       <button
         type="button"
-        aria-label="Octave up ({keyLabel(layout.octaveUpCode)})"
+        aria-label={hasComputerKeys
+          ? `Octave up (${keyLabel(layout.octaveUpCode)})`
+          : "Octave up"}
         disabled={octave >= MAX_OCTAVE}
         onclick={() => setOctave(octave + 1)}>+</button
       >
