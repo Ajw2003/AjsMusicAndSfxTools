@@ -188,6 +188,12 @@ function buildVoicePool(
 
   const heldVoices = () => voices.filter((v) => v.heldMidi !== null);
 
+  /** Tone refuses to restart a sounding voice at or before its last start
+      (#102), so a taken-over voice starts a millisecond after it. */
+  function startTime(v: PoolVoice, time: number): number {
+    return Math.max(time, Tone.immediate(), v.startedAt + 0.001);
+  }
+
   function releaseVoice(v: PoolVoice, time: number): void {
     v.heldMidi = null;
     v.freeAt = time + releaseSeconds;
@@ -209,10 +215,11 @@ function buildVoicePool(
         releaseVoice(oldest, time);
       }
       const v = take(time);
+      const at = startTime(v, time);
       v.heldMidi = midi;
-      v.startedAt = time;
+      v.startedAt = at;
       v.freeAt = Infinity;
-      v.synth.triggerAttack(toHz(midi), time, velocity);
+      v.synth.triggerAttack(toHz(midi), at, velocity);
     },
     release(midi, time = Tone.immediate()) {
       const v = voices.find((x) => x.heldMidi === midi);
@@ -220,10 +227,11 @@ function buildVoicePool(
     },
     play(midi, seconds, velocity, time) {
       const v = take(time);
+      const at = startTime(v, time);
       v.heldMidi = null;
-      v.startedAt = time;
-      v.freeAt = time + seconds + releaseSeconds;
-      v.synth.triggerAttackRelease(toHz(midi), seconds, time, velocity);
+      v.startedAt = at;
+      v.freeAt = at + seconds + releaseSeconds;
+      v.synth.triggerAttackRelease(toHz(midi), seconds, at, velocity);
     },
     releaseAll(time = Tone.immediate()) {
       for (const v of voices) {
