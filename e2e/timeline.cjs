@@ -1877,6 +1877,127 @@ async function startPreview() {
   return { server, url };
 }
 
+/**
+ * Issue #110: touch accept and reject rules on the on-screen keyboard
+ * (src/lib/input/touch-rules.ts), with the second row on.
+ */
+async function touchKeys(browser) {
+  const context = await browser.newContext({
+    viewport: { width: 390, height: 844 },
+    hasTouch: true,
+    isMobile: true,
+  });
+  await context.addInitScript(() =>
+    localStorage.setItem("ajs-music.ui.keyboard-second-row", "true"),
+  );
+  const page = await context.newPage();
+  page.on("pageerror", (e) => check("no page errors", false, e.message));
+  await page.goto(URL);
+  await page.getByRole("button", { name: /press any key to start/i }).tap();
+  const cdp = await context.newCDPSession(page);
+  const touch = (type, points) =>
+    cdp.send("Input.dispatchTouchEvent", {
+      type,
+      touchPoints: points.map(([x, y], i) => ({ x, y, id: i + 1 })),
+    });
+  const upper = page.getByRole("region", { name: "Second keyboard row" });
+  const main = page.getByRole("region", { name: "Keyboard", exact: true });
+  const held = (row) =>
+    row
+      .locator('.key[aria-pressed="true"]')
+      .evaluateAll((els) => els.map((e) => e.dataset.midi));
+  const whites = (row) =>
+    row.locator(".white").evaluateAll((els) =>
+      els.map((e) => {
+        const r = e.getBoundingClientRect();
+        return { l: r.left, r: r.right, t: r.top, b: r.bottom };
+      }),
+    );
+  const w = await whites(main);
+  const u = await whites(upper);
+  const y = w[0].b - 12;
+  const mid = (k) => (k.l + k.r) / 2;
+
+  // Slide over every key, the gaps between them and just past the edge.
+  await touch("touchStart", [[w[0].l + 5, y]]);
+  let silent = 0;
+  let step = 0;
+  for (let x = w[0].l + 5; x <= w[w.length - 1].r - 5; x += 2) {
+    // Every 20th move dips 10px below the keys.
+    await touch("touchMove", [[x, ++step % 20 === 0 ? w[0].b + 10 : y]]);
+    if ((await held(main)).length !== 1) silent++;
+  }
+  await touch("touchEnd", []);
+  check(
+    "touch: a slide over keys, gaps and edges never goes silent",
+    silent === 0,
+    `${silent} silent moves`,
+  );
+
+  await touch("touchStart", [[w[2].r - 2, y]]);
+  await touch("touchMove", [[w[2].r + 4, y]]);
+  const rolled = await held(main);
+  await touch("touchEnd", []);
+  const pressed = await main.locator(".white").nth(2).getAttribute("data-midi");
+  check(
+    "touch: a small roll onto the next key keeps the pressed key",
+    rolled.join() === pressed,
+    `held ${rolled}, pressed ${pressed}`,
+  );
+
+  await touch("touchStart", [[mid(u[1]), u[1].b - 12]]);
+  let crossed = 0;
+  for (let yy = u[1].b - 12; yy <= y; yy += 4) {
+    await touch("touchMove", [[mid(u[1]), yy]]);
+    crossed += (await held(main)).length;
+  }
+  const upperLeft = (await held(upper)).length;
+  await touch("touchMove", [[mid(u[1]), u[1].b - 12]]);
+  const upperBack = (await held(upper)).length;
+  await touch("touchEnd", []);
+  check(
+    "touch: a finger never plays the other row",
+    crossed === 0,
+    `${crossed} presses on the other row`,
+  );
+  check(
+    "touch: leaving the row lets go, coming back plays again",
+    upperLeft === 0 && upperBack === 1,
+    `away ${upperLeft}, back ${upperBack}`,
+  );
+
+  await touch("touchStart", [
+    [u[0].l + 5, u[0].b - 12],
+    [w[0].l + 5, y],
+  ]);
+  let both = 0;
+  for (let dx = 0; dx <= 120; dx += 6) {
+    await touch("touchMove", [
+      [u[0].l + 5 + dx, u[0].b - 12],
+      [w[0].l + 5 + dx, y],
+    ]);
+    if ((await held(upper)).length === 1 && (await held(main)).length === 1)
+      both++;
+  }
+  await touch("touchEnd", []);
+  check(
+    "touch: two thumbs slide on both rows at once",
+    both === 21,
+    `${both}/21 moves`,
+  );
+
+  await page.mouse.move(mid(w[4]), y);
+  await page.mouse.down({ button: "right" });
+  const right = (await held(main)).length;
+  await page.mouse.up({ button: "right" });
+  check(
+    "touch: the right mouse button plays nothing",
+    right === 0,
+    `held ${right}`,
+  );
+  await context.close();
+}
+
 (async () => {
   let preview = null;
   if (!URL) {
@@ -1894,6 +2015,7 @@ async function startPreview() {
     await dragClips(browser);
     await keyboardOnlyClipEdits(browser);
     await touchDrags(browser);
+    await touchKeys(browser);
     await chordBuilderClip(browser);
     await chordPads(browser);
     await scrubbing(browser);

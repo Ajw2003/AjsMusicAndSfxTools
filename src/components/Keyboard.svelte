@@ -16,6 +16,11 @@
     pianoKeys,
   } from "../lib/input/piano-keys";
   import { isTyping } from "../lib/input/is-typing";
+  import {
+    isNearRect,
+    nextMidi,
+    type FingerHold,
+  } from "../lib/input/touch-rules";
   import { drumLabel } from "../lib/audio/drums";
   import { midiToNoteName } from "../lib/note-names";
   import type { Snippet } from "svelte";
@@ -88,6 +93,7 @@
   }
 
   function releaseAllHeld(): void {
+    fingers.clear();
     for (const source of Object.keys(held)) release(source);
   }
 
@@ -97,32 +103,46 @@
   }
 
   // ---- Pointer (mouse, touch, pen) ----
+  // The accept and reject rules live in touch-rules.ts (#110).
+  let piano: HTMLElement;
+  /** Fingers that started on this row, followed until they lift. */
+  // eslint-disable-next-line svelte/prefer-svelte-reactivity -- never rendered; `held` drives the UI
+  const fingers = new Map<number, FingerHold>();
+
+  /** This row's key under a point, or null (gap, edge, other row). */
   function midiAt(x: number, y: number): number | null {
     const el = document
       .elementFromPoint(x, y)
       ?.closest<HTMLElement>("[data-midi]");
-    return el ? Number(el.dataset.midi) : null;
+    return el && piano.contains(el) ? Number(el.dataset.midi) : null;
   }
 
   function onPointerDown(e: PointerEvent): void {
+    if (e.pointerType === "mouse" && e.button !== 0) return;
     const midi = midiAt(e.clientX, e.clientY);
     if (midi === null) return;
     e.preventDefault(); // no focus change, text selection or touch scrolling
     // Touch pointers are implicitly captured to the first key; let go so
     // sliding across keys is handled by pointermove + elementFromPoint.
     (e.target as Element).releasePointerCapture?.(e.pointerId);
+    fingers.set(e.pointerId, { midi, x: e.clientX, y: e.clientY });
     press(`p${e.pointerId}`, midi);
   }
 
   function onPointerMove(e: PointerEvent): void {
-    const source = `p${e.pointerId}`;
-    if (!(source in held)) return;
-    const midi = midiAt(e.clientX, e.clientY);
-    if (midi === null) release(source);
-    else press(source, midi);
+    const hold = fingers.get(e.pointerId);
+    if (!hold) return;
+    const { clientX: x, clientY: y } = e;
+    const near = isNearRect(piano.getBoundingClientRect(), x, y);
+    const midi = nextMidi(hold, x, y, midiAt(x, y), near);
+    if (midi === hold.midi) return;
+    fingers.set(e.pointerId, { midi, x, y });
+    if (midi === null) release(`p${e.pointerId}`);
+    else press(`p${e.pointerId}`, midi);
   }
 
   function onPointerEnd(e: PointerEvent): void {
+    fingers.delete(e.pointerId);
     release(`p${e.pointerId}`);
   }
 
@@ -197,6 +217,7 @@
   onkeydown={onWindowKeydown}
   onkeyup={onWindowKeyup}
   onblur={releaseAllHeld}
+  onpointermove={onPointerMove}
   onpointerup={onPointerEnd}
   onpointercancel={onPointerEnd}
 />
@@ -252,8 +273,8 @@
   <!-- svelte-ignore a11y_no_static_element_interactions -->
   <div
     class="piano"
+    bind:this={piano}
     onpointerdown={onPointerDown}
-    onpointermove={onPointerMove}
     oncontextmenu={(e) => e.preventDefault()}
   >
     <div class="whites">
