@@ -243,7 +243,12 @@ function buildPitchedVoice(preset: ChiptunePreset): Voice {
   const oscillator =
     wave.kind === "pulse"
       ? { type: "pulse", width: wave.width }
-      : { type: wave.kind === "triangle" ? "triangle" : "square" };
+      : {
+          type:
+            wave.kind === "triangle" || wave.kind === "sawtooth"
+              ? wave.kind
+              : "square",
+        };
   const options = {
     oscillator,
     envelope: preset.envelope,
@@ -279,8 +284,61 @@ function buildPitchedVoice(preset: ChiptunePreset): Voice {
   };
 }
 
-function buildVoice(preset: ChiptunePreset): Voice {
-  return preset.wave.kind === "noise"
+/** Reports a sampled voice's download: settled once, as loaded or failed. */
+interface LoadWatcher {
+  onLoad(): void;
+  onError(error: Error): void;
+}
+
+function buildSampledVoice(
+  preset: ChiptunePreset,
+  folder: string,
+  notes: readonly string[],
+  watcher?: LoadWatcher,
+): Voice {
+  const output = new Tone.Volume(0);
+  // File names spell sharps "s" (As1.mp3); Tone wants "A#1".
+  const urls = Object.fromEntries(
+    notes.map((n) => [n.replace("s", "#"), `${n}.mp3`]),
+  );
+  const sampler = new Tone.Sampler({
+    urls,
+    baseUrl: `${import.meta.env.BASE_URL}samples/${folder}/`,
+    release: preset.envelope.release,
+    onload: () => watcher?.onLoad(),
+    onerror: (error) => watcher?.onError(error),
+  }).connect(output);
+  // Notes played before the samples arrive are skipped; the loading notice
+  // says why.
+  return {
+    output,
+    attack(midi, velocity, time) {
+      if (sampler.loaded) sampler.triggerAttack(toHz(midi), time, velocity);
+    },
+    release(midi, time) {
+      if (sampler.loaded) sampler.triggerRelease(toHz(midi), time);
+    },
+    play(midi, seconds, velocity, time) {
+      if (sampler.loaded) {
+        sampler.triggerAttackRelease(toHz(midi), seconds, time, velocity);
+      }
+    },
+    releaseAll(time) {
+      sampler.releaseAll(time);
+    },
+    dispose() {
+      sampler.dispose();
+      output.dispose();
+    },
+  };
+}
+
+function buildVoice(preset: ChiptunePreset, watcher?: LoadWatcher): Voice {
+  const wave = preset.wave;
+  if (wave.kind === "sampled") {
+    return buildSampledVoice(preset, wave.folder, wave.notes, watcher);
+  }
+  return wave.kind === "noise"
     ? buildNoiseVoice(preset)
     : buildPitchedVoice(preset);
 }
@@ -330,6 +388,45 @@ export class AudioEngine {
   #countInBeats = 0;
   #countInSpb = 0;
   #beatsPerBar = 4;
+  /** Names of sampled sounds still downloading. */
+  #loading = new Set<string>();
+  #loadError: string | null = null;
+  /** Told the sample notice to show (a message) or hide (null). */
+  onSampleStatus: ((message: string | null) => void) | null = null;
+
+  #emitSampleStatus(): void {
+    const loading = [...this.#loading].join(", ");
+    this.onSampleStatus?.(
+      this.#loadError ??
+        (loading
+          ? `Loading ${loading} recordings… notes play once ready.`
+          : null),
+    );
+  }
+
+  #watchLoad(name: string): LoadWatcher {
+    this.#loading.add(name);
+    this.#loadError = null;
+    this.#emitSampleStatus();
+    return {
+      onLoad: () => {
+        this.#loading.delete(name);
+        this.#emitSampleStatus();
+      },
+      onError: (error) => {
+        console.error(`Loading ${name} samples failed`, error);
+        this.#loading.delete(name);
+        this.#loadError = `Couldn't load the ${name} recordings, so that track is silent. Check your connection, then pick the sound again.`;
+        this.#emitSampleStatus();
+      },
+    };
+  }
+
+  /** Hide the notice until the next load starts, finishes or fails. */
+  dismissSampleStatus(): void {
+    this.#loadError = null;
+    this.onSampleStatus?.(null);
+  }
 
   get isStarted(): boolean {
     return this.#started;
@@ -378,7 +475,12 @@ export class AudioEngine {
         tv = undefined;
       }
       if (!tv) {
-        const voice = buildVoice(getPreset(track.sound));
+        const preset = getPreset(track.sound);
+        const watcher =
+          preset.wave.kind === "sampled"
+            ? this.#watchLoad(preset.name)
+            : undefined;
+        const voice = buildVoice(preset, watcher);
         voice.output.connect(master.volume);
         tv = { sound: track.sound, voice };
         this.#voices.set(track.id, tv);
@@ -689,14 +791,20 @@ export class AudioEngine {
     const beats = to - from;
     const secondsPerBeat = 60 / song.bpm;
     const duration = beats * secondsPerBeat * passes + TAIL_SECONDS;
-    const buffer = await Tone.Offline(() => {
+    const buffer = await Tone.Offline(async () => {
       const master = buildMaster(this.#masterDb);
+      const voices: { voice: Voice; notes: Note[] }[] = [];
       for (const track of song.tracks) {
         if (track.isMuted || track.kind !== "notes") continue;
         const notes = scheduledNotes(track, from, to);
         const voice = buildVoice(getPreset(track.sound));
         voice.output.volume.value = track.volumeDb;
         voice.output.connect(master.volume);
+        voices.push({ voice, notes });
+      }
+      // Sampled voices skip notes until their recordings have downloaded.
+      await Tone.loaded();
+      for (const { voice, notes } of voices) {
         for (let pass = 0; pass < passes; pass++) {
           for (const n of notes) {
             const time = (pass * beats + n.startBeat - from) * secondsPerBeat;
