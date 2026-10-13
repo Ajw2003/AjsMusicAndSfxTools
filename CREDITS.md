@@ -3,16 +3,20 @@
 Every third-party sound, sample pack and asset shipped with the app is listed here with its
 author, source link and licence. Code dependencies are listed in `package.json` with their own licences.
 
-Recorded instruments come from Nicholaus P. Brosowsky's tonejs-instruments collection, which
-releases its samples under CC BY 3.0 and lists the original recordings it edited (credited below).
-A subset of notes is shipped in `public/samples/`, unchanged from that collection.
+Recorded instruments are note-by-note renders of two General MIDI soundfonts, published in the
+midi-js-soundfonts collection. Files are shipped in `public/samples/` unchanged from that collection
+(the app raises their volume in code). The source collection names the soundfonts and their licences
+but not their authors.
 
-| Asset           | Used for                        | Author                                                                 | Source                                           | Licence   |
-| --------------- | ------------------------------- | ---------------------------------------------------------------------- | ------------------------------------------------ | --------- |
-| Acoustic guitar | Acoustic guitar sound, 9 notes  | Nicholaus P. Brosowsky; original recordings University of Iowa EMS     | https://github.com/nbrosowsky/tonejs-instruments | CC BY 3.0 |
-| Electric guitar | Electric guitar sound, 17 notes | Nicholaus P. Brosowsky; original recordings Karoryfer Samples          | https://github.com/nbrosowsky/tonejs-instruments | CC BY 3.0 |
-| Electric bass   | Electric bass sound, 6 notes    | Nicholaus P. Brosowsky; original recordings Karoryfer Samples          | https://github.com/nbrosowsky/tonejs-instruments | CC BY 3.0 |
-| Upright bass    | Upright bass sound, 8 notes     | Nicholaus P. Brosowsky; original recordings VSCO 2 (Versilian Studios) | https://github.com/nbrosowsky/tonejs-instruments | CC BY 3.0 |
+| Asset           | Used for                                | Author                                                      | Source                                       | Licence      |
+| --------------- | --------------------------------------- | ----------------------------------------------------------- | -------------------------------------------- | ------------ |
+| Acoustic guitar | Acoustic guitar sound, 49 notes (E2–E6) | FluidR3_GM soundfont ("acoustic_guitar_steel"), via gleitz  | https://github.com/gleitz/midi-js-soundfonts | CC BY 3.0    |
+| Electric guitar | Electric guitar sound, 49 notes (E2–E6) | Musyng Kite soundfont ("electric_guitar_clean"), via gleitz | https://github.com/gleitz/midi-js-soundfonts | CC BY-SA 3.0 |
+| Electric bass   | Electric bass sound, 40 notes (E1–G4)   | FluidR3_GM soundfont ("electric_bass_pick"), via gleitz     | https://github.com/gleitz/midi-js-soundfonts | CC BY 3.0    |
+| Upright bass    | Upright bass sound, 40 notes (E1–G4)    | FluidR3_GM soundfont ("acoustic_bass"), via gleitz          | https://github.com/gleitz/midi-js-soundfonts | CC BY 3.0    |
+
+The electric guitar files are share-alike: anyone who changes or redistributes those files must keep
+CC BY-SA 3.0. Music made with them is not affected.
 
 ## Fonts
 

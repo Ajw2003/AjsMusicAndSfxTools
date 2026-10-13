@@ -1,6 +1,7 @@
 // The ONLY file in the app that imports Tone.js.
 import * as Tone from "tone";
-import { getPreset, type ChiptunePreset } from "./chiptune";
+import { getPreset, sampleFileName, type ChiptunePreset } from "./chiptune";
+import { midiToNoteName } from "../note-names";
 import { countInNumber } from "../song/count-in";
 import { drumKind } from "./drums";
 import { encodeWav } from "./wav";
@@ -300,19 +301,21 @@ interface LoadWatcher {
 
 function buildSampledVoice(
   preset: ChiptunePreset,
-  folder: string,
-  notes: readonly string[],
+  wave: { folder: string; lowMidi: number; highMidi: number; gainDb: number },
   watcher?: LoadWatcher,
 ): Voice {
   const output = new Tone.Volume(0);
-  // File names spell sharps "s" (As1.mp3); Tone wants "A#1".
-  const urls = Object.fromEntries(
-    notes.map((n) => [n.replace("s", "#"), `${n}.mp3`]),
-  );
+  const urls: Record<string, string> = {};
+  for (let midi = wave.lowMidi; midi <= wave.highMidi; midi++) {
+    const name = midiToNoteName(midi);
+    urls[name] = `${sampleFileName(name)}.mp3`;
+  }
+  const folder = wave.folder;
   const sampler = new Tone.Sampler({
     urls,
     baseUrl: `${import.meta.env.BASE_URL}samples/${folder}/`,
     release: preset.envelope.release,
+    volume: wave.gainDb,
     onload: () => watcher?.onLoad(),
     onerror: (error) => watcher?.onError(error),
   }).connect(output);
@@ -344,7 +347,7 @@ function buildSampledVoice(
 function buildVoice(preset: ChiptunePreset, watcher?: LoadWatcher): Voice {
   const wave = preset.wave;
   if (wave.kind === "sampled") {
-    return buildSampledVoice(preset, wave.folder, wave.notes, watcher);
+    return buildSampledVoice(preset, wave, watcher);
   }
   return wave.kind === "noise"
     ? buildNoiseVoice(preset)

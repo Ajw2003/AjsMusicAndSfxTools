@@ -26,8 +26,18 @@ export interface ChiptunePreset {
     | { kind: "triangle" }
     | { kind: "sawtooth" }
     | { kind: "noise" }
-    /** Recorded notes in public/samples/<folder>/<note>.mp3, e.g. "As1". */
-    | { kind: "sampled"; folder: string; notes: readonly string[] };
+    /**
+     * One recording per semitone from lowMidi to highMidi, in
+     * public/samples/<folder>/<note>.mp3 with sharps spelled "s" (As1.mp3).
+     * gainDb brings the recordings' median peak to -3 dBFS, like the rest.
+     */
+    | {
+        kind: "sampled";
+        folder: string;
+        lowMidi: number;
+        highMidi: number;
+        gainDb: number;
+      };
   /** Times in seconds; sustain is a level from 0 to 1. */
   envelope: {
     attack: number;
@@ -97,8 +107,8 @@ export const CHIPTUNE_PRESETS: readonly ChiptunePreset[] = [
     envelope: { attack: 0.001, decay: 0.12, sustain: 0, release: 0.03 },
     isPolyphonic: true,
   },
-  // Recordings from tonejs-instruments, CC BY 3.0 (see CREDITS.md). Notes in
-  // between are pitched from the nearest recording.
+  // Plucked recordings from midi-js-soundfonts (see CREDITS.md). A long
+  // release lets a note ring on after the key lifts, as a string does.
   {
     id: "guitar-acoustic",
     name: "Acoustic guitar",
@@ -106,63 +116,53 @@ export const CHIPTUNE_PRESETS: readonly ChiptunePreset[] = [
     wave: {
       kind: "sampled",
       folder: "guitar-acoustic",
-      notes: ["E2", "Gs2", "C3", "E3", "Gs3", "C4", "E4", "Gs4", "C5"],
+      lowMidi: 40,
+      highMidi: 88,
+      gainDb: 15.4,
     },
-    envelope: { attack: 0, decay: 0, sustain: 1, release: 1 },
+    envelope: { attack: 0, decay: 0, sustain: 1, release: 2.5 },
     isPolyphonic: true,
   },
   {
     id: "guitar-electric",
-    name: "Electric guitar",
+    name: "Electric guitar (clean)",
     colour: "#e57373",
     wave: {
       kind: "sampled",
       folder: "guitar-electric",
-      notes: [
-        "Cs2",
-        "E2",
-        "Fs2",
-        "A2",
-        "C3",
-        "Ds3",
-        "Fs3",
-        "A3",
-        "C4",
-        "Ds4",
-        "Fs4",
-        "A4",
-        "C5",
-        "Ds5",
-        "Fs5",
-        "A5",
-        "C6",
-      ],
+      lowMidi: 40,
+      highMidi: 88,
+      gainDb: 20.1,
     },
-    envelope: { attack: 0, decay: 0, sustain: 1, release: 0.6 },
+    envelope: { attack: 0, decay: 0, sustain: 1, release: 2 },
     isPolyphonic: true,
   },
   {
     id: "bass-electric",
-    name: "Electric bass",
+    name: "Electric bass (picked)",
     colour: "#4db6ac",
     wave: {
       kind: "sampled",
       folder: "bass-electric",
-      notes: ["E1", "As1", "E2", "As2", "E3", "As3"],
+      lowMidi: 28,
+      highMidi: 67,
+      gainDb: 15.3,
     },
-    envelope: { attack: 0, decay: 0, sustain: 1, release: 0.4 },
+    envelope: { attack: 0, decay: 0, sustain: 1, release: 1.5 },
     isPolyphonic: true,
   },
   {
     id: "bass-upright",
-    name: "Upright bass",
+    name: "Upright bass (plucked)",
     colour: "#a1887f",
     wave: {
       kind: "sampled",
       folder: "bass-upright",
-      notes: ["G1", "As1", "E2", "Gs2", "Cs3", "E3", "Gs3", "B3"],
+      lowMidi: 28,
+      highMidi: 67,
+      gainDb: 15.2,
     },
-    envelope: { attack: 0, decay: 0, sustain: 1, release: 0.5 },
+    envelope: { attack: 0, decay: 0, sustain: 1, release: 1.5 },
     isPolyphonic: true,
   },
 ];
@@ -172,4 +172,9 @@ export function getPreset(id: ChiptuneSoundId): ChiptunePreset {
   const preset = CHIPTUNE_PRESETS.find((p) => p.id === id);
   if (!preset) throw new Error(`Unknown chiptune sound: ${id}`);
   return preset;
+}
+
+/** Sample file name for a note name: sharps are spelled "s" ("A#1" -> "As1"). */
+export function sampleFileName(noteName: string): string {
+  return noteName.replace("#", "s");
 }
