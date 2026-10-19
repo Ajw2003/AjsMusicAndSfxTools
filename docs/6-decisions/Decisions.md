@@ -5,6 +5,23 @@ Append-only. Newest at the top. An old entry is never rewritten; when one is rep
 
 ---
 
+## 2026-10-06 — Sample packs for piano, guitars, bass and drums
+
+**Context.** #17: pick free sample packs whose licences are read at the source. The owner answered the three
+questions in `docs/plans/sample-sources.md`: credit-required (CC BY) is fine, share-alike (CC BY-SA) is fine
+for drums as a fallback, and each instrument stays under 2 MB.
+
+**Decision.** Piano: Salamander Grand Piano V3 (CC BY 3.0). Acoustic guitar, electric guitar, bass:
+tonejs-instruments (CC BY 3.0; from Iowa and Karoryfer recordings). Drums: Salamander Drumkit (CC BY-SA 3.0).
+Credits are in `CREDITS.md`; sources and quotes in `docs/plans/sample-sources.md`.
+
+**Why.** Each licence was read at its source. The public-domain Open Source Drumkit was the first drum pick, but
+its download carries no licence and only news posts call it public domain, so the CC BY-SA fallback was used.
+
+**Status.** Standing.
+
+---
+
 ## 2026-10-06 — Polyphonic chiptune tracks use our own voice pool, not Tone's PolySynth
 
 **Context.** The owner reported (#95) that spamming keys stutters and glitches. Measured: Tone's `PolySynth`
